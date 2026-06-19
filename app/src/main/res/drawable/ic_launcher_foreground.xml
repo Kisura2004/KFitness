@@ -5,57 +5,53 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     
-    <!-- Outer Premium Circular Emblem Border with dynamic-teal -->
+    <!-- Sophisticated Dark Semi-Transparent Circular Inner Ring -->
     <path
-        android:pathData="M54,54m-34,0a34,34 0 1,1 68,0a34,34 0 1,1 -68,0"
-        android:strokeColor="#2DD4BF"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000" />
-        
-    <!-- Dumbbell Central Bar -->
-    <path
-        android:pathData="M34,54 L74,54"
-        android:strokeColor="#F1F5F9"
-        android:strokeWidth="6"
-        android:strokeLineCap="round" />
-        
-    <!-- Left Small Weight Collar -->
-    <path
-        android:pathData="M40,49 L42,49 A1,1 0 0,1 43,50 L43,58 A1,1 0 0,1 42,59 L40,59 A1,1 0 0,1 39,58 L39,50 A1,1 0 0,1 40,49 Z"
-        android:fillColor="#CBD5E1" />
-        
-    <!-- Right Small Weight Collar -->
-    <path
-        android:pathData="M66,49 L68,49 A1,1 0 0,1 69,50 L69,58 A1,1 0 0,1 68,59 L66,59 A1,1 0 0,1 65,58 L65,50 A1,1 0 0,1 66,49 Z"
-        android:fillColor="#CBD5E1" />
-
-    <!-- Left Plate Inner -->
-    <path
-        android:pathData="M32,44 L37,44 A1.5,1.5 0 0,1 38.5,45.5 L38.5,62.5 A1.5,1.5 0 0,1 37,64 L32,64 A1.5,1.5 0 0,1 30.5,62.5 L30.5,45.5 A1.5,1.5 0 0,1 32,44 Z"
-        android:fillColor="#E2E8F0" />
-        
-    <!-- Left Plate Outer (Vibrant Accent) -->
-    <path
-        android:pathData="M24,38 L28.5,38 A2,2 0 0,1 30.5,40 L30.5,68 A2,2 0 0,1 28.5,70 L24,70 A2,2 0 0,1 22,68 L22,40 A2,2 0 0,1 24,38 Z"
-        android:fillColor="#FB7185" />
-        
-    <!-- Right Plate Inner -->
-    <path
-        android:pathData="M71,44 L76,44 A1.5,1.5 0 0,1 77.5,45.5 L77.5,62.5 A1.5,1.5 0 0,1 76,64 L71,64 A1.5,1.5 0 0,1 69.5,62.5 L69.5,45.5 A1.5,1.5 0 0,1 71,44 Z"
-        android:fillColor="#E2E8F0" />
-        
-    <!-- Right Plate Outer (Vibrant Accent) -->
-    <path
-        android:pathData="M79.5,38 L84,38 A2,2 0 0,1 86,40 L86,68 A2,2 0 0,1 84,70 L79.5,70 A2,2 0 0,1 77.5,68 L77.5,40 A2,2 0 0,1 79.5,38 Z"
-        android:fillColor="#FB7185" />
-
-    <!-- Dynamic Athletic Progression Wave (crossing dumbbell) -->
-    <path
-        android:pathData="M43,62 L50,52 L57,58 L65,46"
-        android:strokeColor="#FFFFFF"
+        android:pathData="M54,54m-44,0a44,44 0 1,1 88,0a44,44 0 1,1 -88,0"
+        android:strokeColor="#1E293B"
         android:strokeWidth="3.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
         android:fillColor="#00000000" />
+
+    <!-- Energetic Neon Mint-Cyan Aura Ring -->
+    <path
+        android:pathData="M54,54m-38,0a38,38 0 1,1 76,0a38,38 0 1,1 -76,0"
+        android:strokeColor="#00F5D4"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- High-End Branded Sport-Pill Geometry forming "K" -->
+    
+    <!-- Left Stem: White Bold Pillar of Strength -->
+    <path
+        android:pathData="M35,26 L35,82"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="10"
+        android:strokeLineCap="round" />
+
+    <!-- Secondary Accent: Ultra-thin Electric Sky Blue dynamic balance line -->
+    <path
+        android:pathData="M46,34 L46,74"
+        android:strokeColor="#00BBF9"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+
+    <!-- Upper Branch: Hyper Cyan high-stamina diagonal wing -->
+    <path
+        android:pathData="M42,54 L74,26"
+        android:strokeColor="#00F5D4"
+        android:strokeWidth="10"
+        android:strokeLineCap="round" />
+
+    <!-- Lower Branch: Neon Pink high-energy ground base wing -->
+    <path
+        android:pathData="M48,47 L74,80"
+        android:strokeColor="#F15BB5"
+        android:strokeWidth="10"
+        android:strokeLineCap="round" />
+
+    <!-- Sparkling Energy Star of Progression in Top-Right -->
+    <path
+        android:pathData="M80,14 L82,20 L88,22 L82,24 L80,30 L78,24 L72,22 L78,20 Z"
+        android:fillColor="#00F5D4" />
 </vector>

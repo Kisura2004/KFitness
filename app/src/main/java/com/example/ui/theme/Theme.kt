@@ -13,7 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
     primary = DarkPrimary,
-    onPrimary = Color(0xFF0F172A), // Slate 900 for high-contrast on teal
+    onPrimary = Color(0xFF0B0F19), // Deep Obsidian background for high-contrast contrast
     primaryContainer = DarkPrimaryContainer,
     onPrimaryContainer = DarkOnPrimaryContainer,
     secondary = DarkSecondary,

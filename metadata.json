@@ -1,6 +1,6 @@
 {
-  "name": "Fitness Tracker",
-  "description": "A calm, professional fitness tracker with modern readability, workout logging, and personal record tracking.",
+  "name": "KFitness",
+  "description": "A premium, high-performance fitness tracker with modern readability, customizable workout logs, and tracking attributes.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
