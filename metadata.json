@@ -1,0 +1,6 @@
+{
+  "name": "Fitness Tracker",
+  "description": "A calm, professional fitness tracker with modern readability, workout logging, and personal record tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
