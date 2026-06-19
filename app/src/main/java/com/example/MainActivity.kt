@@ -2232,6 +2232,7 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
     val storedBirthdayVal by viewModel.profileBirthday.collectAsStateWithLifecycle()
     val storedAgeVal by viewModel.profileAge.collectAsStateWithLifecycle()
     val storedWeightVal by viewModel.profileWeight.collectAsStateWithLifecycle()
+    val storedProfilePicture by viewModel.profilePicture.collectAsStateWithLifecycle()
 
     // Local profile edit drafts initialized with stored values automatically
     var profileName by remember(storedProfileName) { mutableStateOf(storedProfileName) }
@@ -2241,6 +2242,10 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
     var birthdayText by remember(storedBirthdayVal) { mutableStateOf(storedBirthdayVal) }
     var ageText by remember(storedAgeVal) { mutableStateOf(storedAgeVal.toString()) }
     var currentWeightText by remember(storedWeightVal) { mutableStateOf(storedWeightVal) }
+    var localProfilePictureVal by remember(storedProfilePicture) { mutableStateOf(storedProfilePicture) }
+
+    // Visibility state of Edit Form controlled by edit icon click next to avatar
+    var isEditingByIcon by remember { mutableStateOf(false) }
 
     // Setting preferences
     var selectedUnit by rememberSaveable { mutableStateOf("Metric (kg)") }
@@ -2295,10 +2300,10 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Profile initials avatar
+                    // Profile picture or initials avatar
                     Box(
                         modifier = Modifier
-                            .size(60.dp)
+                            .size(68.dp)
                             .clip(CircleShape)
                             .background(
                                 Brush.radialGradient(
@@ -2310,25 +2315,59 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        val initials = if (profileName.trim().isNotEmpty()) {
-                            val parts = profileName.split(" ")
-                            if (parts.size >= 2) {
-                                "${parts[0].take(1)}${parts[1].take(1)}".uppercase()
-                            } else {
-                                profileName.take(2).uppercase()
-                            }
+                        if (storedProfilePicture.startsWith("http://") || storedProfilePicture.startsWith("https://")) {
+                            coil.compose.AsyncImage(
+                                model = storedProfilePicture,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.primary)
+                            )
                         } else {
-                            "KW"
+                            val presetIcon = when (storedProfilePicture) {
+                                "preset_1" -> Icons.Default.FitnessCenter
+                                "preset_2" -> Icons.Default.DirectionsRun
+                                "preset_3" -> Icons.Default.DirectionsBike
+                                "preset_4" -> Icons.Default.SelfImprovement
+                                "preset_5" -> Icons.Default.Pool
+                                "preset_6" -> Icons.Default.EmojiEvents
+                                else -> null
+                            }
+
+                            if (presetIcon != null) {
+                                Icon(
+                                    imageVector = presetIcon,
+                                    contentDescription = "Avatar Profile Icon",
+                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            } else {
+                                val initials = if (profileName.trim().isNotEmpty()) {
+                                    val parts = profileName.split(" ")
+                                    if (parts.size >= 2) {
+                                        "${parts[0].take(1)}${parts[1].take(1)}".uppercase()
+                                    } else {
+                                        profileName.take(2).uppercase()
+                                    }
+                                } else {
+                                    "KW"
+                                }
+                                Text(
+                                    text = initials,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
-                        Text(
-                            text = initials,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Bold
-                        )
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         Text(
                             text = profileName,
                             style = MaterialTheme.typography.titleMedium,
@@ -2347,148 +2386,233 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+
+                    // Clickable Edit Icon Button right next to profile pic and name
+                    IconButton(
+                        onClick = { isEditingByIcon = !isEditingByIcon },
+                        modifier = Modifier.testTag("profile_edit_icon_button")
+                    ) {
+                        Icon(
+                            imageVector = if (isEditingByIcon) Icons.Default.Close else Icons.Default.Edit,
+                            contentDescription = "Edit Profile",
+                            tint = if (isEditingByIcon) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }
 
-        // 2. Setting Inputs & Fields
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+        // 2. Setting Inputs & Fields: Visible ONLY if edit icon has been triggered
+        if (isEditingByIcon) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
-                    Text(
-                        text = "Edit Profile Info",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    OutlinedTextField(
-                        value = profileName,
-                        onValueChange = { profileName = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("settings_name_input"),
-                        label = { Text("Display Name", style = MaterialTheme.typography.bodyMedium) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-
-                    OutlinedTextField(
-                        value = userGoal,
-                        onValueChange = { userGoal = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("settings_goal_input"),
-                        label = { Text("Fitness Goal Description", style = MaterialTheme.typography.bodyMedium) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        Text(
+                            text = "Edit Profile Info",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold
+                        )
+
                         OutlinedTextField(
-                            value = birthdayText,
-                            onValueChange = { birthdayText = it },
+                            value = profileName,
+                            onValueChange = { profileName = it },
                             modifier = Modifier
-                                .weight(1.2f)
-                                .testTag("settings_birthday_input"),
-                            label = { Text("Birthday", style = MaterialTheme.typography.bodyMedium) },
-                            placeholder = { Text("YYYY-MM-DD") },
+                                .fillMaxWidth()
+                                .testTag("settings_name_input"),
+                            label = { Text("Display Name *", style = MaterialTheme.typography.bodyMedium) },
                             singleLine = true,
                             shape = RoundedCornerShape(10.dp)
                         )
 
                         OutlinedTextField(
-                            value = ageText,
-                            onValueChange = { ageText = it },
+                            value = userGoal,
+                            onValueChange = { userGoal = it },
                             modifier = Modifier
-                                .weight(0.8f)
-                                .testTag("settings_age_input"),
-                            label = { Text("Age", style = MaterialTheme.typography.bodyMedium) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp)
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = heightText,
-                            onValueChange = { heightText = it },
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("settings_height_input"),
-                            label = { Text("Height (cm)", style = MaterialTheme.typography.bodyMedium) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                .fillMaxWidth()
+                                .testTag("settings_goal_input"),
+                            label = { Text("Fitness Goal Description", style = MaterialTheme.typography.bodyMedium) },
                             singleLine = true,
                             shape = RoundedCornerShape(10.dp)
                         )
 
-                        OutlinedTextField(
-                            value = currentWeightText,
-                            onValueChange = { currentWeightText = it },
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("settings_current_weight_input"),
-                            label = { Text("Weight (kg)", style = MaterialTheme.typography.bodyMedium) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp)
+                        Text(
+                            text = "Select Avatar or Profile Pic *",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 4.dp)
                         )
-                    }
 
-                    OutlinedTextField(
-                        value = weightTargetText,
-                        onValueChange = { weightTargetText = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("settings_target_weight_input"),
-                        label = { Text("Target Weight (kg)", style = MaterialTheme.typography.bodyMedium) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        shape = RoundedCornerShape(10.dp)
-                    )
-
-                    Button(
-                        onClick = {
-                            val ageVal = ageText.toIntOrNull() ?: storedAgeVal
-                            viewModel.saveProfile(
-                                name = profileName,
-                                birthday = birthdayText,
-                                age = ageVal,
-                                weight = currentWeightText,
-                                height = heightText,
-                                goal = userGoal,
-                                targetPerWeek = workoutsTargetPerWeek,
-                                targetWeightVal = weightTargetText
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val presets = listOf(
+                                "preset_1" to Icons.Default.FitnessCenter,
+                                "preset_2" to Icons.Default.DirectionsRun,
+                                "preset_3" to Icons.Default.DirectionsBike,
+                                "preset_4" to Icons.Default.SelfImprovement,
+                                "preset_5" to Icons.Default.Pool,
+                                "preset_6" to Icons.Default.EmojiEvents
                             )
-                            focusManager.clearFocus()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("settings_save_button"),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+
+                            presets.forEach { (presetId, icon) ->
+                                val isSelected = localProfilePictureVal == presetId
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                        )
+                                        .clickable { localProfilePictureVal = presetId }
+                                        .border(
+                                            width = 2.dp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                            shape = CircleShape
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = presetId,
+                                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = if (localProfilePictureVal.startsWith("http")) localProfilePictureVal else "",
+                            onValueChange = { localProfilePictureVal = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("settings_pic_url_input"),
+                            label = { Text("Or paste Custom Profile Picture URL", style = MaterialTheme.typography.bodyMedium) },
+                            placeholder = { Text("https://example.com/avatar.png") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            trailingIcon = {
+                                if (localProfilePictureVal.isNotEmpty() && localProfilePictureVal.startsWith("http")) {
+                                    IconButton(onClick = { localProfilePictureVal = "" }) {
+                                        Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear URL")
+                                    }
+                                }
+                            }
                         )
-                    ) {
-                        Icon(imageVector = Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Save Profile Entry")
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = birthdayText,
+                                onValueChange = { birthdayText = it },
+                                modifier = Modifier
+                                    .weight(1.2f)
+                                    .testTag("settings_birthday_input"),
+                                label = { Text("Birthday", style = MaterialTheme.typography.bodyMedium) },
+                                placeholder = { Text("YYYY-MM-DD") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp)
+                            )
+
+                            OutlinedTextField(
+                                value = ageText,
+                                onValueChange = { ageText = it },
+                                modifier = Modifier
+                                    .weight(0.8f)
+                                    .testTag("settings_age_input"),
+                                label = { Text("Age", style = MaterialTheme.typography.bodyMedium) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = heightText,
+                                onValueChange = { heightText = it },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("settings_height_input"),
+                                label = { Text("Height (cm)", style = MaterialTheme.typography.bodyMedium) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp)
+                            )
+
+                            OutlinedTextField(
+                                value = currentWeightText,
+                                onValueChange = { currentWeightText = it },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("settings_current_weight_input"),
+                                label = { Text("Weight (kg)", style = MaterialTheme.typography.bodyMedium) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                        }
+
+                        OutlinedTextField(
+                            value = weightTargetText,
+                            onValueChange = { weightTargetText = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("settings_target_weight_input"),
+                            label = { Text("Target Weight (kg)", style = MaterialTheme.typography.bodyMedium) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        Button(
+                            onClick = {
+                                val ageVal = ageText.toIntOrNull() ?: storedAgeVal
+                                viewModel.saveProfile(
+                                    name = profileName,
+                                    birthday = birthdayText,
+                                    age = ageVal,
+                                    weight = currentWeightText,
+                                    height = heightText,
+                                    goal = userGoal,
+                                    targetPerWeek = workoutsTargetPerWeek,
+                                    targetWeightVal = weightTargetText
+                                )
+                                viewModel.saveProfilePicture(localProfilePictureVal)
+                                isEditingByIcon = false
+                                focusManager.clearFocus()
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("settings_save_button"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        ) {
+                            Icon(imageVector = Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Save Profile Entry")
+                        }
                     }
                 }
             }

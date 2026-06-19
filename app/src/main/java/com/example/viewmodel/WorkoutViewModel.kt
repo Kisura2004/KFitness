@@ -42,6 +42,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     val profileGoal = MutableStateFlow(sharedPreferences.getString("profile_goal", "Muscle Gain & Consistency") ?: "Muscle Gain & Consistency")
     val workoutsTargetPerWeek = MutableStateFlow(sharedPreferences.getInt("workouts_target_per_week", 4))
     val weightTarget = MutableStateFlow(sharedPreferences.getString("weight_target", "75.0") ?: "75.0")
+    val profilePicture = MutableStateFlow(sharedPreferences.getString("profile_picture", "") ?: "")
+
+    fun saveProfilePicture(picture: String) {
+        sharedPreferences.edit().putString("profile_picture", picture).apply()
+        profilePicture.value = picture
+    }
 
     fun saveProfile(
         name: String,
