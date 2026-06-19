@@ -31,6 +31,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -69,57 +70,407 @@ enum class Screen(val title: String, val activeIcon: ImageVector, val inactiveIc
 
 @Composable
 fun FitnessApp(viewModel: WorkoutViewModel) {
-    var currentScreen by rememberSaveable { mutableStateOf(Screen.Dashboard) }
+    val isRegistered by viewModel.isProfileRegistered.collectAsStateWithLifecycle()
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            NavigationBar(
-                modifier = Modifier.testTag("bottom_nav_bar"),
-                tonalElevation = 8.dp
+    if (!isRegistered) {
+        RegistrationScreen(viewModel = viewModel)
+    } else {
+        var currentScreen by rememberSaveable { mutableStateOf(Screen.Dashboard) }
+
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            bottomBar = {
+                NavigationBar(
+                    modifier = Modifier.testTag("bottom_nav_bar"),
+                    tonalElevation = 8.dp
+                ) {
+                    Screen.values().forEach { screen ->
+                        val selected = currentScreen == screen
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = { currentScreen = screen },
+                            icon = {
+                                Icon(
+                                    imageVector = if (selected) screen.activeIcon else screen.inactiveIcon,
+                                    contentDescription = screen.title
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = screen.title,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            },
+                            modifier = Modifier.testTag("nav_item_${screen.name.lowercase()}")
+                        )
+                    }
+                }
+            }
+        ) { innerPadding ->
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                color = MaterialTheme.colorScheme.background
             ) {
-                Screen.values().forEach { screen ->
-                    val selected = currentScreen == screen
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = { currentScreen = screen },
-                        icon = {
-                            Icon(
-                                imageVector = if (selected) screen.activeIcon else screen.inactiveIcon,
-                                contentDescription = screen.title
-                            )
-                        },
-                        label = {
-                            Text(
-                                text = screen.title,
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        },
-                        modifier = Modifier.testTag("nav_item_${screen.name.lowercase()}")
-                    )
+                AnimatedContent(
+                    targetState = currentScreen,
+                    transitionSpec = {
+                        fadeIn() togetherWith fadeOut()
+                    },
+                    label = "ScreenTransition"
+                ) { screen ->
+                    when (screen) {
+                        Screen.Dashboard -> DashboardScreen(viewModel = viewModel)
+                        Screen.Calendar -> CalendarScreen(viewModel = viewModel)
+                        Screen.Records -> PersonalRecordsScreen(viewModel = viewModel)
+                        Screen.Profile -> ProfileScreen(viewModel = viewModel)
+                    }
                 }
             }
         }
-    ) { innerPadding ->
-        Surface(
+    }
+}
+
+@Composable
+fun RegistrationScreen(viewModel: WorkoutViewModel) {
+    val context = LocalContext.current
+    var name by remember { mutableStateOf("") }
+    var birthday by remember { mutableStateOf("") }
+    var age by remember { mutableStateOf("") }
+    var weight by remember { mutableStateOf("") }
+    var height by remember { mutableStateOf("") }
+    var targetWeight by remember { mutableStateOf("") }
+    var goal by remember { mutableStateOf("Muscle Gain") }
+    var targetPerWeek by remember { mutableStateOf(4) }
+
+    var showError by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+
+    val goals = listOf("Muscle Gain", "Fat Loss", "Consistency", "Endurance", "General Health")
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                )
+            )
+            .statusBarsPadding()
+            .navigationBarsPadding(),
+        contentAlignment = Alignment.Center
+    ) {
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding),
-            color = MaterialTheme.colorScheme.background
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            AnimatedContent(
-                targetState = currentScreen,
-                transitionSpec = {
-                    fadeIn() togetherWith fadeOut()
-                },
-                label = "ScreenTransition"
-            ) { screen ->
-                when (screen) {
-                    Screen.Dashboard -> DashboardScreen(viewModel = viewModel)
-                    Screen.Calendar -> CalendarScreen(viewModel = viewModel)
-                    Screen.Records -> PersonalRecordsScreen(viewModel = viewModel)
-                    Screen.Profile -> ProfileScreen(viewModel = viewModel)
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.secondary
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FitnessCenter,
+                        contentDescription = "KFitness App Logo",
+                        modifier = Modifier.size(45.dp),
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Welcome to KFitness",
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Create your physical training profile to begin",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    shape = RoundedCornerShape(20.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Text(
+                            text = "Personal Details",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text("Full Name *") },
+                            placeholder = { Text("e.g. John Doe") },
+                            modifier = Modifier.fillMaxWidth().testTag("reg_name_input"),
+                            singleLine = true,
+                            leadingIcon = {
+                                Icon(Icons.Default.Person, contentDescription = "Name")
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        OutlinedCard(
+                            onClick = {
+                                val calendar = Calendar.getInstance()
+                                val year = calendar.get(Calendar.YEAR) - 25
+                                val month = calendar.get(Calendar.MONTH)
+                                val day = calendar.get(Calendar.DAY_OF_MONTH)
+
+                                val datePickerDialog = android.app.DatePickerDialog(
+                                    context,
+                                    { _, selYear, selMonth, selDay ->
+                                        val formatted = String.format("%04d-%02d-%02d", selYear, selMonth + 1, selDay)
+                                        birthday = formatted
+                                        
+                                        val today = Calendar.getInstance()
+                                        var computedAge = today.get(Calendar.YEAR) - selYear
+                                        if (today.get(Calendar.MONTH) < selMonth || 
+                                            (today.get(Calendar.MONTH) == selMonth && today.get(Calendar.DAY_OF_MONTH) < selDay)) {
+                                            computedAge--
+                                        }
+                                        age = computedAge.coerceAtLeast(0).toString()
+                                    },
+                                    year, month, day
+                                )
+                                datePickerDialog.show()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Cake,
+                                        contentDescription = "Birthday icon",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Column {
+                                        Text(
+                                            text = "Date of Birth (Optional)",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = birthday.ifBlank { "Not Specified" },
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = if (birthday.isNotBlank()) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                            fontWeight = if (birthday.isNotBlank()) FontWeight.SemiBold else FontWeight.Normal
+                                        )
+                                    }
+                                }
+                                Icon(
+                                    imageVector = Icons.Default.CalendarToday,
+                                    contentDescription = "Select Date",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = age,
+                            onValueChange = { age = it },
+                            label = { Text("Age *") },
+                            placeholder = { Text("e.g. 25") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth().testTag("reg_age_input"),
+                            singleLine = true,
+                            leadingIcon = {
+                                Icon(Icons.Default.HourglassEmpty, contentDescription = "Age")
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = height,
+                                onValueChange = { height = it },
+                                label = { Text("Height (cm)") },
+                                placeholder = { Text("178") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f).testTag("reg_height_input"),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            OutlinedTextField(
+                                value = weight,
+                                onValueChange = { weight = it },
+                                label = { Text("Weight (kg) *") },
+                                placeholder = { Text("70") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f).testTag("reg_weight_input"),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        }
+
+                        OutlinedTextField(
+                            value = targetWeight,
+                            onValueChange = { targetWeight = it },
+                            label = { Text("Target Weight (kg)") },
+                            placeholder = { Text("75") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth().testTag("reg_target_weight_input"),
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        Text(
+                            text = "Main Fitness Goal",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(goals) { item ->
+                                val isSelected = goal == item
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { goal = item },
+                                    label = { Text(item) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = "Weekly workout target: $targetPerWeek days",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { if (targetPerWeek > 1) targetPerWeek-- }) {
+                                Icon(Icons.Default.Remove, contentDescription = "Decrease target")
+                            }
+                            Text(
+                                text = targetPerWeek.toString(),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            IconButton(onClick = { if (targetPerWeek < 7) targetPerWeek++ }) {
+                                Icon(Icons.Default.Add, contentDescription = "Increase target")
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (showError) {
+                item {
+                    Text(
+                        text = errorMessage,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+            }
+
+            item {
+                Button(
+                    onClick = {
+                        if (name.isBlank()) {
+                            errorMessage = "Please enter your name."
+                            showError = true
+                        } else if (age.toIntOrNull() == null) {
+                            errorMessage = "Please enter a valid age."
+                            showError = true
+                        } else if (weight.toDoubleOrNull() == null) {
+                            errorMessage = "Please enter a valid weight (kg)."
+                            showError = true
+                        } else {
+                            showError = false
+                            viewModel.saveProfile(
+                                name = name,
+                                birthday = birthday,
+                                age = age.toIntOrNull() ?: 25,
+                                weight = weight,
+                                height = height.ifBlank { "178" },
+                                goal = goal,
+                                targetPerWeek = targetPerWeek,
+                                targetWeightVal = targetWeight.ifBlank { weight }
+                            )
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .testTag("reg_submit_button"),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) {
+                    Text(
+                        text = "Build Profile & Launch App",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
@@ -1872,17 +2223,30 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
     val repTrackerEnabled by viewModel.repTrackerEnabled.collectAsStateWithLifecycle()
     val timeTrackerEnabled by viewModel.timeTrackerEnabled.collectAsStateWithLifecycle()
 
-    // Local profile preferences
-    var profileName by rememberSaveable { mutableStateOf("Kisura Wijeweera") }
-    var heightText by rememberSaveable { mutableStateOf("178") }
-    var userGoal by rememberSaveable { mutableStateOf("Muscle Gain & Consistency") }
-    
+    // Read stored profile info
+    val storedProfileName by viewModel.profileName.collectAsStateWithLifecycle()
+    val storedHeightText by viewModel.profileHeight.collectAsStateWithLifecycle()
+    val storedUserGoal by viewModel.profileGoal.collectAsStateWithLifecycle()
+    val storedWeightTargetText by viewModel.weightTarget.collectAsStateWithLifecycle()
+    val storedWorkoutsTargetPerWeek by viewModel.workoutsTargetPerWeek.collectAsStateWithLifecycle()
+    val storedBirthdayVal by viewModel.profileBirthday.collectAsStateWithLifecycle()
+    val storedAgeVal by viewModel.profileAge.collectAsStateWithLifecycle()
+    val storedWeightVal by viewModel.profileWeight.collectAsStateWithLifecycle()
+
+    // Local profile edit drafts initialized with stored values automatically
+    var profileName by remember(storedProfileName) { mutableStateOf(storedProfileName) }
+    var heightText by remember(storedHeightText) { mutableStateOf(storedHeightText) }
+    var userGoal by remember(storedUserGoal) { mutableStateOf(storedUserGoal) }
+    var weightTargetText by remember(storedWeightTargetText) { mutableStateOf(storedWeightTargetText) }
+    var birthdayText by remember(storedBirthdayVal) { mutableStateOf(storedBirthdayVal) }
+    var ageText by remember(storedAgeVal) { mutableStateOf(storedAgeVal.toString()) }
+    var currentWeightText by remember(storedWeightVal) { mutableStateOf(storedWeightVal) }
+
     // Setting preferences
-    var weightTargetText by rememberSaveable { mutableStateOf("75.0") }
     var selectedUnit by rememberSaveable { mutableStateOf("Metric (kg)") }
     var remindersEnabled by rememberSaveable { mutableStateOf(true) }
     var healthBridgeEnabled by rememberSaveable { mutableStateOf(false) }
-    var workoutsTargetPerWeek by rememberSaveable { mutableStateOf(4) }
+    var workoutsTargetPerWeek by remember(storedWorkoutsTargetPerWeek) { mutableStateOf(storedWorkoutsTargetPerWeek) }
     
     // Weight logging field
     var newWeightVal by remember { mutableStateOf("") }
@@ -2033,6 +2397,35 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         OutlinedTextField(
+                            value = birthdayText,
+                            onValueChange = { birthdayText = it },
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .testTag("settings_birthday_input"),
+                            label = { Text("Birthday", style = MaterialTheme.typography.bodyMedium) },
+                            placeholder = { Text("YYYY-MM-DD") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp)
+                        )
+
+                        OutlinedTextField(
+                            value = ageText,
+                            onValueChange = { ageText = it },
+                            modifier = Modifier
+                                .weight(0.8f)
+                                .testTag("settings_age_input"),
+                            label = { Text("Age", style = MaterialTheme.typography.bodyMedium) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        OutlinedTextField(
                             value = heightText,
                             onValueChange = { heightText = it },
                             modifier = Modifier
@@ -2045,16 +2438,57 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                         )
 
                         OutlinedTextField(
-                            value = weightTargetText,
-                            onValueChange = { weightTargetText = it },
+                            value = currentWeightText,
+                            onValueChange = { currentWeightText = it },
                             modifier = Modifier
                                 .weight(1f)
-                                .testTag("settings_target_weight_input"),
-                            label = { Text("Target Weight (kg)", style = MaterialTheme.typography.bodyMedium) },
+                                .testTag("settings_current_weight_input"),
+                            label = { Text("Weight (kg)", style = MaterialTheme.typography.bodyMedium) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
                             shape = RoundedCornerShape(10.dp)
                         )
+                    }
+
+                    OutlinedTextField(
+                        value = weightTargetText,
+                        onValueChange = { weightTargetText = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("settings_target_weight_input"),
+                        label = { Text("Target Weight (kg)", style = MaterialTheme.typography.bodyMedium) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    Button(
+                        onClick = {
+                            val ageVal = ageText.toIntOrNull() ?: storedAgeVal
+                            viewModel.saveProfile(
+                                name = profileName,
+                                birthday = birthdayText,
+                                age = ageVal,
+                                weight = currentWeightText,
+                                height = heightText,
+                                goal = userGoal,
+                                targetPerWeek = workoutsTargetPerWeek,
+                                targetWeightVal = weightTargetText
+                            )
+                            focusManager.clearFocus()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("settings_save_button"),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
+                        Icon(imageVector = Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Save Profile Entry")
                     }
                 }
             }
@@ -2090,7 +2524,13 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { if (workoutsTargetPerWeek > 1) workoutsTargetPerWeek-- }) {
+                            IconButton(onClick = { 
+                                if (workoutsTargetPerWeek > 1) {
+                                    val newTarget = workoutsTargetPerWeek - 1
+                                    workoutsTargetPerWeek = newTarget
+                                    viewModel.updateWorkoutsTargetPerWeek(newTarget)
+                                }
+                            }) {
                                 Icon(imageVector = Icons.Default.Remove, contentDescription = "Decrease")
                             }
                             Text(
@@ -2099,7 +2539,13 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 8.dp)
                             )
-                            IconButton(onClick = { if (workoutsTargetPerWeek < 7) workoutsTargetPerWeek++ }) {
+                            IconButton(onClick = { 
+                                if (workoutsTargetPerWeek < 7) {
+                                    val newTarget = workoutsTargetPerWeek + 1
+                                    workoutsTargetPerWeek = newTarget
+                                    viewModel.updateWorkoutsTargetPerWeek(newTarget)
+                                }
+                            }) {
                                 Icon(imageVector = Icons.Default.Add, contentDescription = "Increase")
                             }
                         }
@@ -2621,7 +3067,7 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Version 1.2.0",
+                    text = "Version 1.3.0",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )

@@ -32,6 +32,62 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     private val sharedPreferences = application.getSharedPreferences("workout_preferences", Context.MODE_PRIVATE)
 
+    // User profile preferences
+    val isProfileRegistered = MutableStateFlow(sharedPreferences.getBoolean("is_profile_registered", false))
+    val profileName = MutableStateFlow(sharedPreferences.getString("profile_name", "") ?: "")
+    val profileBirthday = MutableStateFlow(sharedPreferences.getString("profile_birthday", "") ?: "")
+    val profileAge = MutableStateFlow(sharedPreferences.getInt("profile_age", 25))
+    val profileHeight = MutableStateFlow(sharedPreferences.getString("profile_height", "178") ?: "178")
+    val profileWeight = MutableStateFlow(sharedPreferences.getString("profile_weight", "70.0") ?: "70.0")
+    val profileGoal = MutableStateFlow(sharedPreferences.getString("profile_goal", "Muscle Gain & Consistency") ?: "Muscle Gain & Consistency")
+    val workoutsTargetPerWeek = MutableStateFlow(sharedPreferences.getInt("workouts_target_per_week", 4))
+    val weightTarget = MutableStateFlow(sharedPreferences.getString("weight_target", "75.0") ?: "75.0")
+
+    fun saveProfile(
+        name: String,
+        birthday: String,
+        age: Int,
+        weight: String,
+        height: String,
+        goal: String,
+        targetPerWeek: Int,
+        targetWeightVal: String
+    ) {
+        sharedPreferences.edit().apply {
+            putBoolean("is_profile_registered", true)
+            putString("profile_name", name.trim())
+            putString("profile_birthday", birthday.trim())
+            putInt("profile_age", age)
+            putString("profile_weight", weight.trim())
+            putString("profile_height", height.trim())
+            putString("profile_goal", goal.trim())
+            putInt("workouts_target_per_week", targetPerWeek)
+            putString("weight_target", targetWeightVal.trim())
+            apply()
+        }
+
+        isProfileRegistered.value = true
+        profileName.value = name.trim()
+        profileBirthday.value = birthday.trim()
+        profileAge.value = age
+        profileWeight.value = weight.trim()
+        profileHeight.value = height.trim()
+        profileGoal.value = goal.trim()
+        workoutsTargetPerWeek.value = targetPerWeek
+        weightTarget.value = targetWeightVal.trim()
+
+        // Sync with the weight database automatically!
+        val weightDb = weight.toDoubleOrNull()
+        if (weightDb != null) {
+            addWeightEntry(weightDb)
+        }
+    }
+
+    fun updateWorkoutsTargetPerWeek(target: Int) {
+        workoutsTargetPerWeek.value = target
+        sharedPreferences.edit().putInt("workouts_target_per_week", target).apply()
+    }
+
     // Log customization preferences
     val setTrackerEnabled = MutableStateFlow(sharedPreferences.getBoolean("set_tracker_enabled", true))
     val repTrackerEnabled = MutableStateFlow(sharedPreferences.getBoolean("rep_tracker_enabled", true))
