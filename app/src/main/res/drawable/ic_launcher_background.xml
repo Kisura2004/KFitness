@@ -9,20 +9,16 @@
         android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
             <gradient
-                android:startX="0"
+                android:startX="54"
                 android:startY="0"
-                android:endX="108"
+                android:endX="54"
                 android:endY="108"
                 android:type="linear">
-                <item android:color="#0F172A" android:offset="0.0"/>
-                <item android:color="#1E293B" android:offset="0.5"/>
-                <item android:color="#0F172A" android:offset="1.0"/>
+                <!-- Premium deep luxury near-black background matching the user's image -->
+                <item android:color="#1B2026" android:offset="0.0"/>
+                <item android:color="#0F1216" android:offset="0.5"/>
+                <item android:color="#0A0C0E" android:offset="1.0"/>
             </gradient>
         </aapt:attr>
     </path>
-    <!-- Dynamic active grid of sport stripes for premium tone -->
-    <path
-        android:pathData="M0,20 L20,0 M0,40 L40,0 M0,60 L60,0 M0,80 L80,0 M0,100 L100,0 M0,120 L120,0 M20,120 L120,20 M40,120 L120,40 M60,120 L120,60 M80,120 L120,80"
-        android:strokeWidth="1"
-        android:strokeColor="#334155" />
 </vector>

@@ -2211,6 +2211,37 @@ fun CalendarScreen(viewModel: WorkoutViewModel) {
 // -------------------------------------------------------------
 // SCREEN 4: USER PROFILE & SETTINGS
 // -------------------------------------------------------------
+fun saveUriToInternalStorage(context: android.content.Context, uri: android.net.Uri): String? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+        val file = java.io.File(context.filesDir, "profile_picture.jpg")
+        val outputStream = java.io.FileOutputStream(file)
+        inputStream.use { input ->
+            outputStream.use { output ->
+                input.copyTo(output)
+            }
+        }
+        file.absolutePath
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+fun saveBitmapToInternalStorage(context: android.content.Context, bitmap: android.graphics.Bitmap): String? {
+    return try {
+        val file = java.io.File(context.filesDir, "profile_picture.jpg")
+        val outputStream = java.io.FileOutputStream(file)
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, outputStream)
+        outputStream.flush()
+        outputStream.close()
+        file.absolutePath
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
 @Composable
 fun ProfileScreen(viewModel: WorkoutViewModel) {
     val weightsAsc by viewModel.weightEntriesAsc.collectAsStateWithLifecycle()
@@ -2246,6 +2277,117 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
 
     // Visibility state of Edit Form controlled by edit icon click next to avatar
     var isEditingByIcon by remember { mutableStateOf(false) }
+    var showPhotoPickerDialog by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+
+    val galleryLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            val savedPath = saveUriToInternalStorage(context, uri)
+            if (savedPath != null) {
+                localProfilePictureVal = savedPath
+                viewModel.saveProfilePicture(savedPath)
+            }
+        }
+    }
+
+    val cameraLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: android.graphics.Bitmap? ->
+        if (bitmap != null) {
+            val savedPath = saveBitmapToInternalStorage(context, bitmap)
+            if (savedPath != null) {
+                localProfilePictureVal = savedPath
+                viewModel.saveProfilePicture(savedPath)
+            }
+        }
+    }
+
+    if (showPhotoPickerDialog) {
+        AlertDialog(
+            onDismissRequest = { showPhotoPickerDialog = false },
+            title = {
+                Text(
+                    text = "Profile Photo Source",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Option 1: Camera
+                    Surface(
+                        onClick = {
+                            showPhotoPickerDialog = false
+                            cameraLauncher.launch(null)
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth().testTag("dialog_camera_option")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = "Camera",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Take Photo (Camera)",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    // Option 2: Gallery
+                    Surface(
+                        onClick = {
+                            showPhotoPickerDialog = false
+                            galleryLauncher.launch("image/*")
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth().testTag("dialog_gallery_option")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Image,
+                                contentDescription = "Gallery",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Upload from Gallery",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showPhotoPickerDialog = false }) {
+                    Text("Cancel", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        )
+    }
 
     // Setting preferences
     var selectedUnit by rememberSaveable { mutableStateOf("Metric (kg)") }
@@ -2300,67 +2442,94 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Profile picture or initials avatar
+                    // Profile picture or initials avatar with camera icon overlay right next to/on it
                     Box(
                         modifier = Modifier
-                            .size(68.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primaryContainer,
-                                        MaterialTheme.colorScheme.primary
+                            .size(76.dp)
+                    ) {
+                        // Main avatar circle
+                        Box(
+                            modifier = Modifier
+                                .size(68.dp)
+                                .align(Alignment.TopStart)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.radialGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.primaryContainer,
+                                            MaterialTheme.colorScheme.primary
+                                        )
                                     )
                                 )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (storedProfilePicture.startsWith("http://") || storedProfilePicture.startsWith("https://")) {
-                            coil.compose.AsyncImage(
-                                model = storedProfilePicture,
-                                contentDescription = "Profile Picture",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.primary)
-                            )
-                        } else {
-                            val presetIcon = when (storedProfilePicture) {
-                                "preset_1" -> Icons.Default.FitnessCenter
-                                "preset_2" -> Icons.Default.DirectionsRun
-                                "preset_3" -> Icons.Default.DirectionsBike
-                                "preset_4" -> Icons.Default.SelfImprovement
-                                "preset_5" -> Icons.Default.Pool
-                                "preset_6" -> Icons.Default.EmojiEvents
-                                else -> null
-                            }
-
-                            if (presetIcon != null) {
-                                Icon(
-                                    imageVector = presetIcon,
-                                    contentDescription = "Avatar Profile Icon",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(36.dp)
+                                .clickable { showPhotoPickerDialog = true }
+                                .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (storedProfilePicture.isNotEmpty() && !storedProfilePicture.startsWith("preset_")) {
+                                coil.compose.AsyncImage(
+                                    model = storedProfilePicture,
+                                    contentDescription = "Profile Picture",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(CircleShape),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                    error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.primary)
                                 )
                             } else {
-                                val initials = if (profileName.trim().isNotEmpty()) {
-                                    val parts = profileName.split(" ")
-                                    if (parts.size >= 2) {
-                                        "${parts[0].take(1)}${parts[1].take(1)}".uppercase()
-                                    } else {
-                                        profileName.take(2).uppercase()
-                                    }
-                                } else {
-                                    "KW"
+                                val presetIcon = when (storedProfilePicture) {
+                                    "preset_1" -> Icons.Default.FitnessCenter
+                                    "preset_2" -> Icons.Default.DirectionsRun
+                                    "preset_3" -> Icons.Default.DirectionsBike
+                                    "preset_4" -> Icons.Default.SelfImprovement
+                                    "preset_5" -> Icons.Default.Pool
+                                    "preset_6" -> Icons.Default.EmojiEvents
+                                    else -> null
                                 }
-                                Text(
-                                    text = initials,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    fontWeight = FontWeight.Bold
-                                )
+
+                                if (presetIcon != null) {
+                                    Icon(
+                                        imageVector = presetIcon,
+                                        contentDescription = "Avatar Profile Icon",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(36.dp)
+                                    )
+                                } else {
+                                    val initials = if (profileName.trim().isNotEmpty()) {
+                                        val parts = profileName.split(" ")
+                                        if (parts.size >= 2) {
+                                            "${parts[0].take(1)}${parts[1].take(1)}".uppercase()
+                                        } else {
+                                            profileName.take(2).uppercase()
+                                        }
+                                    } else {
+                                        "KW"
+                                    }
+                                    Text(
+                                        text = initials,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
+                        }
+
+                        // Seamless overlay button floating next to the circle
+                        IconButton(
+                            onClick = { showPhotoPickerDialog = true },
+                            modifier = Modifier
+                                .size(28.dp)
+                                .align(Alignment.BottomEnd)
+                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                                .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+                                .testTag("top_profile_photo_camera_badge")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = "Change Photo",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(14.dp)
+                            )
                         }
                     }
 
@@ -2445,11 +2614,12 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                             shape = RoundedCornerShape(10.dp)
                         )
 
+                        // Quick preset selector (custom images are managed directly via the top avatar)
                         Text(
-                            text = "Select Avatar or Profile Pic *",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.SemiBold,
+                            text = "Choose a Preset Avatar",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium,
                             modifier = Modifier.padding(top = 4.dp)
                         )
 
@@ -2493,25 +2663,6 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                                 }
                             }
                         }
-
-                        OutlinedTextField(
-                            value = if (localProfilePictureVal.startsWith("http")) localProfilePictureVal else "",
-                            onValueChange = { localProfilePictureVal = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("settings_pic_url_input"),
-                            label = { Text("Or paste Custom Profile Picture URL", style = MaterialTheme.typography.bodyMedium) },
-                            placeholder = { Text("https://example.com/avatar.png") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            trailingIcon = {
-                                if (localProfilePictureVal.isNotEmpty() && localProfilePictureVal.startsWith("http")) {
-                                    IconButton(onClick = { localProfilePictureVal = "" }) {
-                                        Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear URL")
-                                    }
-                                }
-                            }
-                        )
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),

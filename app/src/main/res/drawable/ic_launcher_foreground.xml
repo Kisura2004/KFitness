@@ -5,91 +5,95 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Precise Blue Circular Ring behind barbell -->
+    <!-- Glowing Electric Blue Circular Ring (Perfectly proportioned and centered) -->
     <path
-        android:pathData="M54,46m-24,0a24,24 0 1,1 48,0a24,24 0 1,1 -48,0"
-        android:strokeColor="#007BFF"
-        android:strokeWidth="4"
+        android:pathData="M54,44m-17,0a17,17 0 1,1 34,0a17,17 0 1,1 -34,0"
+        android:strokeColor="#0066FF"
+        android:strokeWidth="3.2"
         android:strokeLineCap="round"
         android:fillColor="#00000000" />
 
-    <!-- Barbell Connecting Bar (White) -->
+    <!-- Pure White Barbell Connecting Shaft -->
     <path
-        android:pathData="M30,46L78,46"
+        android:pathData="M35,44L73,44"
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="6"
+        android:strokeWidth="3.5"
         android:strokeLineCap="square" />
 
-    <!-- LEFT SIZED PLATES (Stack centered vertically at Y=46) -->
+    <!-- LEFT SYMMETRICAL WEIGHT PLATES (White/Silver Gradient Tone) -->
     <!-- Innermost Plate 1 (Largest) -->
     <path
-        android:pathData="M27,28 L34,28 A2,2 0 0,1 36,30 L36,62 A2,2 0 0,1 34,64 L27,64 A2,2 0 0,1 25,62 L25,30 A2,2 0 0,1 27,28 Z"
+        android:pathData="M35.5,31 A1,1 0 0,1 36.5,30 L37.5,30 A1,1 0 0,1 38.5,31 L38.5,57 A1,1 0 0,1 37.5,58 L36.5,58 A1,1 0 0,1 35.5,57 Z"
         android:fillColor="#FFFFFF" />
     
     <!-- Plate 2 -->
     <path
-        android:pathData="M21,32 L24,32 A1.5,1.5 0 0,1 25.5,33.5 L25.5,58.5 A1.5,1.5 0 0,1 24,60 L21,60 A1.5,1.5 0 0,1 19.5,58.5 L19.5,33.5 A1.5,1.5 0 0,1 21,32 Z"
-        android:fillColor="#E2E8F0" />
+        android:pathData="M32,34 A0.8,0.8 0 0,1 32.8,33.2 L33.7,33.2 A0.8,0.8 0 0,1 34.5,34 L34.5,54 A0.8,0.8 0 0,1 33.7,54.8 L32.8,54.8 A0.8,0.8 0 0,1 32,54 Z"
+        android:fillColor="#EAEFF5" />
     
     <!-- Plate 3 -->
     <path
-        android:pathData="M16,36 L18,36 A1,1 0 0,1 19,37 L19,55 A1,1 0 0,1 18,56 L16,56 A1,1 0 0,1 15,55 L15,37 A1,1 0 0,1 16,36 Z"
-        android:fillColor="#CBD5E1" />
+        android:pathData="M29,37 A0.6,0.6 0 0,1 29.6,36.4 L30.4,36.4 A0.6,0.6 0 0,1 31,37 L31,51 A0.6,0.6 0 0,1 30.4,51.6 L29.6,51.6 A0.6,0.6 0 0,1 29,51 Z"
+        android:fillColor="#D0D9E3" />
     
     <!-- Plate 4 -->
     <path
-        android:pathData="M12,40 L13.5,40 A1,1 0 0,1 14.5,41 L14.5,51 A1,1 0 0,1 13.5,52 L12,52 A1,1 0 0,1 11,51 L11,41 A1,1 0 0,1 12,40 Z"
-        android:fillColor="#94A3B8" />
+        android:pathData="M26.5,39.4 A0.5,0.5 0 0,1 27,38.9 L27.5,38.9 A0.5,0.5 0 0,1 28,39.4 L28,48.6 A0.5,0.5 0 0,1 27.5,49.1 L27,49.1 A0.5,0.5 0 0,1 26.5,48.6 Z"
+        android:fillColor="#B9C6D3" />
 
-    <!-- Outermost Collar/Cap -->
+    <!-- Outermost Collar / Cap -->
     <path
-        android:pathData="M9,43 L9.5,43 A1,1 0 0,1 10.5,44 L10.5,48 A1,1 0 0,1 9.5,49 L9,49 A1,1 0 0,1 8,48 L8,44 A1,1 0 0,1 9,43 Z"
-        android:fillColor="#64748B" />
+        android:pathData="M24.5,41.8 A0.4,0.4 0 0,1 24.9,41.4 L25.1,41.4 A0.4,0.4 0 0,1 25.5,41.8 L25.5,46.2 A0.4,0.4 0 0,1 25.1,46.6 L24.9,46.6 A0.4,0.4 0 0,1 24.5,46.2 Z"
+        android:fillColor="#9FB1C1" />
 
 
-    <!-- RIGHT SIZED PLATES (Symmetric, stack centered vertically at Y=46) -->
+    <!-- RIGHT SYMMETRICAL WEIGHT PLATES -->
     <!-- Innermost Plate 1 (Largest) -->
     <path
-        android:pathData="M74,28 L81,28 A2,2 0 0,1 83,30 L83,62 A2,2 0 0,1 81,64 L74,64 A2,2 0 0,1 72,62 L72,30 A2,2 0 0,1 74,28 Z"
+        android:pathData="M69.5,31 A1,1 0 0,1 70.5,30 L71.5,30 A1,1 0 0,1 72.5,31 L72.5,57 A1,1 0 0,1 71.5,58 L70.5,58 A1,1 0 0,1 69.5,57 Z"
         android:fillColor="#FFFFFF" />
     
     <!-- Plate 2 -->
     <path
-        android:pathData="M84,32 L87,32 A1.5,1.5 0 0,1 88.5,33.5 L88.5,58.5 A1.5,1.5 0 0,1 87,60 L84,60 A1.5,1.5 0 0,1 82.5,58.5 L82.5,33.5 A1.5,1.5 0 0,1 84,32 Z"
-        android:fillColor="#E2E8F0" />
+        android:pathData="M73.5,34 A0.8,0.8 0 0,1 74.3,33.2 L75.2,33.2 A0.8,0.8 0 0,1 76,34 L76,54 A0.8,0.8 0 0,1 75.2,54.8 L74.3,54.8 A0.8,0.8 0 0,1 73.5,54 Z"
+        android:fillColor="#EAEFF5" />
     
     <!-- Plate 3 -->
     <path
-        android:pathData="M90,36 L92,36 A1,1 0 0,1 93,37 L93,55 A1,1 0 0,1 92,56 L90,56 A1,1 0 0,1 89,55 L89,37 A1,1 0 0,1 90,36 Z"
-        android:fillColor="#CBD5E1" />
+        android:pathData="M77,37 A0.6,0.6 0 0,1 77.6,36.4 L78.4,36.4 A0.6,0.6 0 0,1 79,37 L79,51 A0.6,0.6 0 0,1 78.4,51.6 L77.6,51.6 A0.6,0.6 0 0,1 77,51 Z"
+        android:fillColor="#D0D9E3" />
     
     <!-- Plate 4 -->
     <path
-        android:pathData="M93.5,40 L95,40 A1,1 0 0,1 96,41 L96,51 A1,1 0 0,1 95,52 L93.5,52 A1,1 0 0,1 92.5,51 L92.5,41 A1,1 0 0,1 93.5,40 Z"
-        android:fillColor="#94A3B8" />
+        android:pathData="M80,39.4 A0.5,0.5 0 0,1 80.5,38.9 L81,38.9 A0.5,0.5 0 0,1 81.5,39.4 L81.5,48.6 A0.5,0.5 0 0,1 81,49.1 L80.5,49.1 A0.5,0.5 0 0,1 80,48.6 Z"
+        android:fillColor="#B9C6D3" />
 
-    <!-- Outermost Collar/Cap -->
+    <!-- Outermost Collar / Cap -->
     <path
-        android:pathData="M98,43 L98.5,43 A1,1 0 0,1 99.5,44 L99.5,48 A1,1 0 0,1 98.5,49 L98,49 A1,1 0 0,1 97,48 L97,44 A1,1 0 0,1 98,43 Z"
-        android:fillColor="#64748B" />
+        android:pathData="M82.5,41.8 A0.4,0.4 0 0,1 82.9,41.4 L83.1,41.4 A0.4,0.4 0 0,1 83.5,41.8 L83.5,46.2 A0.4,0.4 0 0,1 83.1,46.6 L82.9,46.6 A0.4,0.4 0 0,1 82.5,46.2 Z"
+        android:fillColor="#9FB1C1" />
 
-    <!-- Bold Electric Blue Letter "K" at the Bottom -->
-    <!-- Vertical line of K -->
+
+    <!-- Electric Blue Letter "K" (Perfect styling and safe-zone vertical location) -->
+    <!-- Vertical stem of K -->
     <path
-        android:pathData="M48,74 L48,98"
-        android:strokeColor="#007BFF"
-        android:strokeWidth="6"
+        android:pathData="M49,67 L49,85"
+        android:strokeColor="#0066FF"
+        android:strokeWidth="4.2"
         android:strokeLineCap="round" />
     
-    <!-- Diagonal links of K meeting at vertical center (48, 86) -->
+    <!-- Top diagonal arm -->
     <path
-        android:pathData="M49,86L61,72"
-        android:strokeColor="#007BFF"
-        android:strokeWidth="6.5"
+        android:pathData="M49.5,75.5 L58.5,67"
+        android:strokeColor="#0066FF"
+        android:strokeWidth="4.2"
         android:strokeLineCap="round" />
+    
+    <!-- Bottom diagonal arm -->
     <path
-        android:pathData="M49,86L61,98"
-        android:strokeColor="#007BFF"
-        android:strokeWidth="6.5"
+        android:pathData="M49.5,75.5 L58.5,85"
+        android:strokeColor="#0066FF"
+        android:strokeWidth="4.2"
         android:strokeLineCap="round" />
+
 </vector>
