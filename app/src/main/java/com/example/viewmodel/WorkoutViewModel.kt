@@ -18,6 +18,7 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.Query
+import retrofit2.http.Header
 import java.util.concurrent.TimeUnit
 
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
@@ -136,6 +137,44 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val newValue = !mealTrackerEnabled.value
         mealTrackerEnabled.value = newValue
         sharedPreferences.edit().putBoolean("meal_tracker_enabled", newValue).apply()
+    }
+
+    // Nutrition targets (editable calorie and macro targets/goals)
+    val calorieGoal = MutableStateFlow(sharedPreferences.getInt("calorie_goal", 2200))
+    val proteinGoal = MutableStateFlow(sharedPreferences.getFloat("protein_goal", 140.0f).toDouble())
+    val carbsGoal = MutableStateFlow(sharedPreferences.getFloat("carbs_goal", 250.0f).toDouble())
+    val fatsGoal = MutableStateFlow(sharedPreferences.getFloat("fats_goal", 75.0f).toDouble())
+
+    fun updateNutritionGoals(calories: Int, protein: Double, carbs: Double, fats: Double) {
+        calorieGoal.value = calories
+        proteinGoal.value = protein
+        carbsGoal.value = carbs
+        fatsGoal.value = fats
+        sharedPreferences.edit().apply {
+            putInt("calorie_goal", calories)
+            putFloat("protein_goal", protein.toFloat())
+            putFloat("carbs_goal", carbs.toFloat())
+            putFloat("fats_goal", fats.toFloat())
+        }.apply()
+    }
+
+    // Llama configuration states
+    val llmProvider = MutableStateFlow(sharedPreferences.getString("llm_provider", "Llama (OpenRouter)") ?: "Llama (OpenRouter)")
+    val llmBaseUrl = MutableStateFlow(sharedPreferences.getString("llm_base_url", "https://openrouter.ai/api/v1/") ?: "https://openrouter.ai/api/v1/")
+    val llmModel = MutableStateFlow(sharedPreferences.getString("llm_model", "meta-llama/llama-3.2-3b-instruct:free") ?: "meta-llama/llama-3.2-3b-instruct:free")
+    val llmApiKey = MutableStateFlow(sharedPreferences.getString("llm_api_key", "") ?: "")
+
+    fun updateLlamaConfig(provider: String, baseUrl: String, model: String, apiKey: String) {
+        llmProvider.value = provider
+        llmBaseUrl.value = baseUrl
+        llmModel.value = model
+        llmApiKey.value = apiKey
+        sharedPreferences.edit().apply {
+            putString("llm_provider", provider)
+            putString("llm_base_url", baseUrl)
+            putString("llm_model", model)
+            putString("llm_api_key", apiKey)
+        }.apply()
     }
 
     // Compute workout streak dynamically
@@ -342,15 +381,13 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             _suggestionError.value = null
             _suggestedMeals.value = null
 
-            val apiKey = com.example.BuildConfig.GEMINI_API_KEY
-            if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
-                _suggestionError.value = "Gemini API key is not configured. Please add your key in the Secrets panel."
-                _isGeneratingSuggestions.value = false
-                return@launch
-            }
+            val provider = llmProvider.value
+            val model = llmModel.value
+            val key = llmApiKey.value.trim()
+            val baseUrl = llmBaseUrl.value.trim()
 
             val prompt = """
-                You are a professional nutritionist in a fitness app. 
+                You are a professional nutrition expert or dietitian in a fitness app. 
                 Please suggest several healthy, standard, and highly recommendation-focused meal options/dishes (at least 4 options) specifically popular/typical for a person living in "$country".
                 The suggestions must meet the following nutritional/dietary requirement/goal: "$requirement".
                 
@@ -363,24 +400,82 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 Maintain concise and highly scannable outputs.
             """.trimIndent()
 
-            val request = GeminiRequest(
-                contents = listOf(GeminiContent(parts = listOf(GeminiPart(text = prompt))))
-            )
-
-            try {
-                val response = geminiService.generateContent(apiKey, request)
-                val textResponse = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
-                if (!textResponse.isNullOrBlank()) {
-                    _suggestedMeals.value = textResponse
-                } else {
-                    _suggestionError.value = "Received empty response from the AI recommendation model."
+            if (provider == "Gemini (Default)") {
+                val apiKey = com.example.BuildConfig.GEMINI_API_KEY
+                if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
+                    _suggestionError.value = "Gemini API key is not configured. Please add your key in the Secrets panel."
+                    _isGeneratingSuggestions.value = false
+                    return@launch
                 }
-            } catch (e: Exception) {
-                _suggestionError.value = "Failed to fetch suggestions: ${e.message}"
-            } finally {
-                _isGeneratingSuggestions.value = false
+
+                val request = GeminiRequest(
+                    contents = listOf(GeminiContent(parts = listOf(GeminiPart(text = prompt))))
+                )
+
+                try {
+                    val response = geminiService.generateContent(apiKey, request)
+                    val textResponse = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                    if (!textResponse.isNullOrBlank()) {
+                        _suggestedMeals.value = textResponse
+                    } else {
+                        _suggestionError.value = "Received empty response from the AI recommendation model."
+                    }
+                } catch (e: Exception) {
+                    _suggestionError.value = "Failed to fetch suggestions: ${e.message}"
+                } finally {
+                    _isGeneratingSuggestions.value = false
+                }
+            } else {
+                if (key.isEmpty()) {
+                    _suggestionError.value = "Llama API Key is empty. Please enter your OpenRouter or Groq API-Key in the Llama LLM configuration options below."
+                    _isGeneratingSuggestions.value = false
+                    return@launch
+                }
+
+                val request = ChatRequest(
+                    model = model,
+                    messages = listOf(ChatMessage(role = "user", content = prompt))
+                )
+
+                try {
+                    val authHeader = "Bearer $key"
+                    val service = getLlamaService(baseUrl)
+                    val response = service.generateCompletion(authHeader, request)
+                    val textResponse = response.choices?.firstOrNull()?.message?.content
+                    if (!textResponse.isNullOrBlank()) {
+                        _suggestedMeals.value = textResponse
+                    } else {
+                        _suggestionError.value = "Received empty response from Llama model."
+                    }
+                } catch (e: Exception) {
+                    _suggestionError.value = "Failed to fetch suggestions from Llama: ${e.message}\nDouble-check your API Key, Model name and Base URL. You can get a free key for Llama 3.2 on openrouter.ai."
+                } finally {
+                    _isGeneratingSuggestions.value = false
+                }
             }
         }
+    }
+
+    private fun getLlamaService(customBaseUrl: String): LlamaApiService {
+        val formattedBaseUrl = if (customBaseUrl.endsWith("/")) customBaseUrl else "$customBaseUrl/"
+        val okHttpClient = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+
+        val jsonConverter = retrofit2.converter.moshi.MoshiConverterFactory.create(
+            com.squareup.moshi.Moshi.Builder()
+                .addLast(com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory())
+                .build()
+        )
+
+        return retrofit2.Retrofit.Builder()
+            .baseUrl(formattedBaseUrl)
+            .client(okHttpClient)
+            .addConverterFactory(jsonConverter)
+            .build()
+            .create(LlamaApiService::class.java)
     }
 }
 
@@ -405,4 +500,28 @@ interface GeminiApiService {
         @Query("key") apiKey: String,
         @Body request: GeminiRequest
     ): GeminiResponse
+}
+
+@JsonClass(generateAdapter = true)
+data class ChatMessage(val role: String, val content: String)
+
+@JsonClass(generateAdapter = true)
+data class ChatRequest(
+    val model: String,
+    val messages: List<ChatMessage>,
+    val temperature: Double = 0.7
+)
+
+@JsonClass(generateAdapter = true)
+data class ChatChoice(val message: ChatMessage)
+
+@JsonClass(generateAdapter = true)
+data class ChatResponse(val choices: List<ChatChoice>?)
+
+interface LlamaApiService {
+    @POST("chat/completions")
+    suspend fun generateCompletion(
+        @Header("Authorization") authHeader: String,
+        @Body request: ChatRequest
+    ): ChatResponse
 }

@@ -24,6 +24,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -44,9 +46,21 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
     
     val profileGoal by viewModel.profileGoal.collectAsStateWithLifecycle()
     
+    // Observed targets from database/shared preferences
+    val targetCalories by viewModel.calorieGoal.collectAsStateWithLifecycle()
+    val targetProtein by viewModel.proteinGoal.collectAsStateWithLifecycle()
+    val targetCarbs by viewModel.carbsGoal.collectAsStateWithLifecycle()
+    val targetFats by viewModel.fatsGoal.collectAsStateWithLifecycle()
+
+    // Observed Llama settings
+    val currentProvider by viewModel.llmProvider.collectAsStateWithLifecycle()
+    val currentBaseUrl by viewModel.llmBaseUrl.collectAsStateWithLifecycle()
+    val currentModel by viewModel.llmModel.collectAsStateWithLifecycle()
+    val currentApiKey by viewModel.llmApiKey.collectAsStateWithLifecycle()
+
     val focusManager = LocalFocusManager.current
     
-    // UI Local state for dialog fields
+    // UI Local state for meal dialog fields
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var mealName by rememberSaveable { mutableStateOf("") }
     var caloriesStr by rememberSaveable { mutableStateOf("") }
@@ -54,11 +68,45 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
     var carbsStr by rememberSaveable { mutableStateOf("") }
     var fatsStr by rememberSaveable { mutableStateOf("") }
     var selectedMealType by rememberSaveable { mutableStateOf("Breakfast") }
+
+    // UI Local state for calorie & macro target settings
+    var showEditTargetsDialog by rememberSaveable { mutableStateOf(false) }
+    var editCalorieGoalStr by rememberSaveable { mutableStateOf("") }
+    var editProteinGoalStr by rememberSaveable { mutableStateOf("") }
+    var editCarbsGoalStr by rememberSaveable { mutableStateOf("") }
+    var editFatsGoalStr by rememberSaveable { mutableStateOf("") }
     
     // AI Suggestions user state
     var countryInput by rememberSaveable { mutableStateOf("United States") }
     var requirementInput by rememberSaveable(profileGoal) { 
         mutableStateOf(if (profileGoal.isNotEmpty()) profileGoal else "Balanced Nutrition") 
+    }
+
+    // Toggle for Llama model customizable settings
+    var showLlamaConfig by rememberSaveable { mutableStateOf(false) }
+    var keyVisible by rememberSaveable { mutableStateOf(false) }
+
+    // Country selection autcompletion definitions
+    val countryList = remember {
+        listOf(
+            "United States", "India", "United Kingdom", "Canada", "Australia", "Germany", "France",
+            "Japan", "Brazil", "South Africa", "Mexico", "Singapore", "New Zealand", "Spain", "Italy",
+            "Netherlands", "Sweden", "Switzerland", "China", "Russia", "Argentina", "Chile", "Colombia",
+            "Peru", "Ireland", "Portugal", "Norway", "Finland", "Denmark", "Austria", "Belgium", "Greece",
+            "Turkey", "Saudi Arabia", "United Arab Emirates", "Egypt", "Nigeria", "Kenya", "Malaysia",
+            "Thailand", "Vietnam", "Indonesia", "Philippines", "Sri Lanka", "Bangladesh", "Pakistan",
+            "Ukraine", "Poland", "Czech Republic", "Hungary", "Romania"
+        ).distinct().sorted()
+    }
+    var showCountrySuggestions by remember { mutableStateOf(false) }
+    val filteredCountries = remember(countryInput) {
+        if (countryInput.trim().isEmpty()) {
+            emptyList()
+        } else {
+            countryList.filter { 
+                it.contains(countryInput, ignoreCase = true) && !it.equals(countryInput, ignoreCase = true)
+            }
+        }
     }
 
     // Filter today's logged meals
@@ -80,12 +128,6 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
     val totalProtein = todayMeals.sumOf { it.protein }
     val totalCarbs = todayMeals.sumOf { it.carbs }
     val totalFats = todayMeals.sumOf { it.fats }
-    
-    // Benchmarks
-    val targetCalories = 2200
-    val targetProtein = 140.0
-    val targetCarbs = 250.0
-    val targetFats = 75.0
 
     LazyColumn(
         modifier = Modifier
@@ -171,11 +213,37 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                                 fontWeight = FontWeight.Black,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
-                            Text(
-                                text = "/ $targetCalories kcal consumed",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                            )
+                            
+                            // Editable daily calorie target display
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        editCalorieGoalStr = targetCalories.toString()
+                                        editProteinGoalStr = targetProtein.toInt().toString()
+                                        editCarbsGoalStr = targetCarbs.toInt().toString()
+                                        editFatsGoalStr = targetFats.toInt().toString()
+                                        showEditTargetsDialog = true
+                                    }
+                                    .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.08f))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .testTag("edit_calorie_target_button")
+                            ) {
+                                Text(
+                                    text = "/ $targetCalories kcal",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Adjust target",
+                                    modifier = Modifier.size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
                         }
                         
                         val completionPercentage = (totalCalories.toDouble() / targetCalories.toDouble()).coerceIn(0.0, 1.0)
@@ -349,14 +417,14 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
             }
         }
 
-        // 4. GEMINI AI RECOMMENDATIONS EXPANSION PANEL
+        // 4. AI RECOMMENDATIONS EXPANSION PANEL
         item {
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = "Gemini Nutrition Planner",
+                text = "Nutrition Planner",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -395,34 +463,252 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                         }
                         Column {
                             Text(
-                                text = "Localized AI Food Suggestions",
+                                text = "Localized LLM Food Suggestions",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Suggest localized recipes with accurate macros",
+                                text = "Suggest meals with Llama or Gemini",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
-                    OutlinedTextField(
-                        value = countryInput,
-                        onValueChange = { countryInput = it },
-                        label = { Text("Country / Localization") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("ai_country_input"),
-                        leadingIcon = { Icon(Icons.Default.Place, contentDescription = "Country") },
-                        shape = RoundedCornerShape(8.dp),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Next
-                        ),
-                        singleLine = true
-                    )
+                    // Collapsible Llama configuration section
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showLlamaConfig = !showLlamaConfig }
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = "LLM Settings",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Model: $currentProvider",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Icon(
+                                    imageVector = if (showLlamaConfig) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = "Toggle LLM config",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            AnimatedVisibility(
+                                visible = showLlamaConfig,
+                                enter = fadeIn() + expandVertically(),
+                                exit = fadeOut() + shrinkVertically()
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text(
+                                        text = "Choose LLM provider & load free Llama configurations:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+
+                                    // Selection chips
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        listOf("Llama (OpenRouter)", "Llama (Groq)", "Gemini (Default)").forEach { providerOpt ->
+                                            val isSelected = currentProvider == providerOpt
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(
+                                                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
+                                                    )
+                                                    .clickable {
+                                                        if (providerOpt == "Llama (OpenRouter)") {
+                                                            viewModel.updateLlamaConfig(
+                                                                provider = providerOpt,
+                                                                baseUrl = "https://openrouter.ai/api/v1/",
+                                                                model = "meta-llama/llama-3.2-3b-instruct:free",
+                                                                apiKey = currentApiKey
+                                                            )
+                                                        } else if (providerOpt == "Llama (Groq)") {
+                                                            viewModel.updateLlamaConfig(
+                                                                provider = providerOpt,
+                                                                baseUrl = "https://api.groq.com/openai/v1/",
+                                                                model = "llama-3.3-70b-versatile",
+                                                                apiKey = currentApiKey
+                                                            )
+                                                        } else {
+                                                            viewModel.updateLlamaConfig(
+                                                                provider = providerOpt,
+                                                                baseUrl = "",
+                                                                model = "",
+                                                                apiKey = ""
+                                                            )
+                                                        }
+                                                    }
+                                                    .padding(vertical = 6.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = providerOpt.replace("Llama ", ""),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    if (currentProvider != "Gemini (Default)") {
+                                        // Editable fields for custom config
+                                        OutlinedTextField(
+                                            value = currentBaseUrl,
+                                            onValueChange = { 
+                                                viewModel.updateLlamaConfig(currentProvider, it, currentModel, currentApiKey)
+                                            },
+                                            label = { Text("API Base URL") },
+                                            modifier = Modifier.fillMaxWidth().testTag("llama_base_url_input"),
+                                            singleLine = true,
+                                            textStyle = MaterialTheme.typography.bodySmall
+                                        )
+
+                                        OutlinedTextField(
+                                            value = currentModel,
+                                            onValueChange = {
+                                                viewModel.updateLlamaConfig(currentProvider, currentBaseUrl, it, currentApiKey)
+                                            },
+                                            label = { Text("Model Name") },
+                                            modifier = Modifier.fillMaxWidth().testTag("llama_model_name_input"),
+                                            singleLine = true,
+                                            textStyle = MaterialTheme.typography.bodySmall
+                                        )
+
+                                        OutlinedTextField(
+                                            value = currentApiKey,
+                                            onValueChange = {
+                                                viewModel.updateLlamaConfig(currentProvider, currentBaseUrl, currentModel, it)
+                                            },
+                                            label = { Text("Llama API Key") },
+                                            modifier = Modifier.fillMaxWidth().testTag("llama_api_key_input"),
+                                            singleLine = true,
+                                            visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                                            trailingIcon = {
+                                                IconButton(onClick = { keyVisible = !keyVisible }) {
+                                                    Icon(
+                                                        imageVector = if (keyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                                        contentDescription = "Toggle password visibility"
+                                                    )
+                                                }
+                                            },
+                                            textStyle = MaterialTheme.typography.bodySmall
+                                        )
+
+                                        Text(
+                                            text = "You can obtain free Llama keys at openrouter.ai/keys or use dynamic Groq credentials.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Autocompeting Country Code Box
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = countryInput,
+                                onValueChange = { 
+                                    countryInput = it
+                                    showCountrySuggestions = true 
+                                },
+                                label = { Text("Country / Localization") },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("ai_country_input"),
+                                leadingIcon = { Icon(Icons.Default.Place, contentDescription = "Country") },
+                                shape = RoundedCornerShape(8.dp),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Text,
+                                    imeAction = ImeAction.Next
+                                ),
+                                singleLine = true
+                            )
+                            
+                            // Country Suggestions floating overlay underneath the field
+                            if (showCountrySuggestions && filteredCountries.isNotEmpty()) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("country_suggestions_dropdown"),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(4.dp),
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        filteredCountries.take(5).forEach { matchedCountry ->
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        countryInput = matchedCountry
+                                                        showCountrySuggestions = false
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Place,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = matchedCountry,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     OutlinedTextField(
                         value = requirementInput,
@@ -444,6 +730,7 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                     Button(
                         onClick = {
                             focusManager.clearFocus()
+                            showCountrySuggestions = false
                             viewModel.fetchFoodSuggestions(countryInput.trim(), requirementInput.trim())
                         },
                         modifier = Modifier
@@ -460,7 +747,8 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Querying Gemini...")
+                            val isLlama = currentProvider != "Gemini (Default)"
+                            Text(if (isLlama) "Querying Llama model..." else "Querying Gemini...")
                         } else {
                             Icon(
                                 imageVector = Icons.Default.AutoAwesome,
@@ -532,7 +820,113 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
         }
     }
 
-    // 5. DIALOG - FORM TO RECORD A NEW MEAL LOG
+    // 5. DIALOG - ADJUST DAILY NUTRITION TARGETS
+    if (showEditTargetsDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditTargetsDialog = false },
+            title = {
+                Text(
+                    text = "Adjust Daily Targets",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Customize your dynamic daily calorie intake and nutrient targets.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    OutlinedTextField(
+                        value = editCalorieGoalStr,
+                        onValueChange = { editCalorieGoalStr = it },
+                        label = { Text("Daily Calories Target (kcal)") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("edit_target_calories"),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Next
+                        ),
+                        leadingIcon = { Icon(Icons.Default.LocalFireDepartment, contentDescription = "Calories") }
+                    )
+
+                    OutlinedTextField(
+                        value = editProteinGoalStr,
+                        onValueChange = { editProteinGoalStr = it },
+                        label = { Text("Target Protein (g)") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("edit_target_protein"),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Next
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = editCarbsGoalStr,
+                        onValueChange = { editCarbsGoalStr = it },
+                        label = { Text("Target Carbs (g)") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("edit_target_carbs"),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Next
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = editFatsGoalStr,
+                        onValueChange = { editFatsGoalStr = it },
+                        label = { Text("Target Fats (g)") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("edit_target_fats"),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Number,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() })
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val calories = editCalorieGoalStr.toIntOrNull() ?: 2200
+                        val protein = editProteinGoalStr.toDoubleOrNull() ?: 140.0
+                        val carbs = editCarbsGoalStr.toDoubleOrNull() ?: 250.0
+                        val fats = editFatsGoalStr.toDoubleOrNull() ?: 75.0
+                        viewModel.updateNutritionGoals(calories, protein, carbs, fats)
+                        showEditTargetsDialog = false
+                    },
+                    modifier = Modifier.testTag("save_target_goals"),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Save Goals")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditTargetsDialog = false }) {
+                    Text("Cancel")
+                }
+            },
+            shape = RoundedCornerShape(16.dp)
+        )
+    }
+
+    // 6. DIALOG - FORM TO RECORD A NEW MEAL LOG
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
