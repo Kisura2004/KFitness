@@ -8,6 +8,7 @@ class WorkoutRepository(private val workoutDao: WorkoutDao) {
     val allWeightsDesc: Flow<List<WeightEntry>> = workoutDao.getAllWeightEntriesDesc()
     val allWeightsAsc: Flow<List<WeightEntry>> = workoutDao.getAllWeightEntriesAsc()
     val latestWeight: Flow<WeightEntry?> = workoutDao.getLatestWeightEntry()
+    val allMeals: Flow<List<MealLog>> = workoutDao.getAllMealLogs()
 
     suspend fun insertLog(log: WorkoutLog) {
         workoutDao.insertWorkoutLog(log)
@@ -31,5 +32,13 @@ class WorkoutRepository(private val workoutDao: WorkoutDao) {
 
     suspend fun deleteWeight(id: Int) {
         workoutDao.deleteWeightEntry(id)
+    }
+
+    suspend fun insertMeal(meal: MealLog) {
+        workoutDao.insertMealLog(meal)
+    }
+
+    suspend fun deleteMeal(id: Int) {
+        workoutDao.deleteMealLog(id)
     }
 }

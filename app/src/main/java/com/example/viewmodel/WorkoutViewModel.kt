@@ -9,6 +9,16 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import com.squareup.moshi.JsonClass
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import okhttp3.OkHttpClient
+import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
+import retrofit2.http.Body
+import retrofit2.http.POST
+import retrofit2.http.Query
+import java.util.concurrent.TimeUnit
 
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: WorkoutRepository
@@ -19,6 +29,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     val workoutLogs: StateFlow<List<WorkoutLog>> = repository.allLogs
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val mealLogs: StateFlow<List<MealLog>> = repository.allMeals
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val personalRecords: StateFlow<List<PersonalRecord>> = repository.allPRs
@@ -115,6 +128,14 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val newValue = !timeTrackerEnabled.value
         timeTrackerEnabled.value = newValue
         sharedPreferences.edit().putBoolean("time_tracker_enabled", newValue).apply()
+    }
+
+    val mealTrackerEnabled = MutableStateFlow(sharedPreferences.getBoolean("meal_tracker_enabled", false))
+
+    fun toggleMealTracker() {
+        val newValue = !mealTrackerEnabled.value
+        mealTrackerEnabled.value = newValue
+        sharedPreferences.edit().putBoolean("meal_tracker_enabled", newValue).apply()
     }
 
     // Compute workout streak dynamically
@@ -248,4 +269,140 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
         return streak
     }
+
+    // Meal Logging Operations
+    fun addMealLog(
+        name: String,
+        calories: Int,
+        protein: Double,
+        carbs: Double,
+        fats: Double,
+        mealType: String = "Breakfast",
+        timestamp: Long = System.currentTimeMillis()
+    ) {
+        viewModelScope.launch {
+            val log = MealLog(
+                name = name.trim(),
+                calories = calories,
+                protein = protein,
+                carbs = carbs,
+                fats = fats,
+                mealType = mealType,
+                timestamp = timestamp
+            )
+            repository.insertMeal(log)
+        }
+    }
+
+    fun deleteMealLog(id: Int) {
+        viewModelScope.launch {
+            repository.deleteMeal(id)
+        }
+    }
+
+    // Gemini Food Suggestions States
+    private val _suggestedMeals = MutableStateFlow<String?>(null)
+    val suggestedMeals: StateFlow<String?> = _suggestedMeals.asStateFlow()
+
+    private val _isGeneratingSuggestions = MutableStateFlow(false)
+    val isGeneratingSuggestions: StateFlow<Boolean> = _isGeneratingSuggestions.asStateFlow()
+
+    private val _suggestionError = MutableStateFlow<String?>(null)
+    val suggestionError: StateFlow<String?> = _suggestionError.asStateFlow()
+
+    fun clearSuggestions() {
+        _suggestedMeals.value = null
+        _suggestionError.value = null
+    }
+
+    private val geminiService by lazy {
+        val okHttpClient = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+
+        val jsonConverter = retrofit2.converter.moshi.MoshiConverterFactory.create(
+            com.squareup.moshi.Moshi.Builder()
+                .addLast(com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory())
+                .build()
+        )
+
+        retrofit2.Retrofit.Builder()
+            .baseUrl("https://generativelanguage.googleapis.com/")
+            .client(okHttpClient)
+            .addConverterFactory(jsonConverter)
+            .build()
+            .create(GeminiApiService::class.java)
+    }
+
+    fun fetchFoodSuggestions(country: String, requirement: String) {
+        viewModelScope.launch {
+            _isGeneratingSuggestions.value = true
+            _suggestionError.value = null
+            _suggestedMeals.value = null
+
+            val apiKey = com.example.BuildConfig.GEMINI_API_KEY
+            if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
+                _suggestionError.value = "Gemini API key is not configured. Please add your key in the Secrets panel."
+                _isGeneratingSuggestions.value = false
+                return@launch
+            }
+
+            val prompt = """
+                You are a professional nutritionist in a fitness app. 
+                Please suggest several healthy, standard, and highly recommendation-focused meal options/dishes (at least 4 options) specifically popular/typical for a person living in "$country".
+                The suggestions must meet the following nutritional/dietary requirement/goal: "$requirement".
+                
+                For each suggested meal option, provide:
+                1. A clear, appetizing Name (Bold).
+                2. A brief, polite Description of how to prepare or why it is good for "$requirement", localized to "$country".
+                3. Estimated Calories, Protein (g), Carbs (g), and Fats (g) in a clean, professional, compact style.
+                
+                Format the entire response in a beautifully organized structure. Keep the tone friendly, helpful, and professional. 
+                Maintain concise and highly scannable outputs.
+            """.trimIndent()
+
+            val request = GeminiRequest(
+                contents = listOf(GeminiContent(parts = listOf(GeminiPart(text = prompt))))
+            )
+
+            try {
+                val response = geminiService.generateContent(apiKey, request)
+                val textResponse = response.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+                if (!textResponse.isNullOrBlank()) {
+                    _suggestedMeals.value = textResponse
+                } else {
+                    _suggestionError.value = "Received empty response from the AI recommendation model."
+                }
+            } catch (e: Exception) {
+                _suggestionError.value = "Failed to fetch suggestions: ${e.message}"
+            } finally {
+                _isGeneratingSuggestions.value = false
+            }
+        }
+    }
+}
+
+@JsonClass(generateAdapter = true)
+data class GeminiPart(val text: String)
+
+@JsonClass(generateAdapter = true)
+data class GeminiContent(val parts: List<GeminiPart>)
+
+@JsonClass(generateAdapter = true)
+data class GeminiRequest(val contents: List<GeminiContent>)
+
+@JsonClass(generateAdapter = true)
+data class GeminiCandidate(val content: GeminiContent)
+
+@JsonClass(generateAdapter = true)
+data class GeminiResponse(val candidates: List<GeminiCandidate>?)
+
+interface GeminiApiService {
+    @POST("v1beta/models/gemini-3.5-flash:generateContent")
+    suspend fun generateContent(
+        @Query("key") apiKey: String,
+        @Body request: GeminiRequest
+    ): GeminiResponse
 }

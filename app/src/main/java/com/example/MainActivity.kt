@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
 enum class Screen(val title: String, val activeIcon: ImageVector, val inactiveIcon: ImageVector) {
     Dashboard("Planner", Icons.Filled.Dashboard, Icons.Outlined.Dashboard),
     Calendar("Calendar", Icons.Filled.DateRange, Icons.Outlined.DateRange),
+    Meals("Meals", Icons.Filled.Restaurant, Icons.Outlined.Restaurant),
     Records("PRs", Icons.Filled.EmojiEvents, Icons.Outlined.EmojiEvents),
     Profile("Profile", Icons.Filled.Person, Icons.Outlined.Person)
 }
@@ -75,7 +76,22 @@ fun FitnessApp(viewModel: WorkoutViewModel) {
     if (!isRegistered) {
         RegistrationScreen(viewModel = viewModel)
     } else {
+        val mealTrackerEnabled by viewModel.mealTrackerEnabled.collectAsStateWithLifecycle()
         var currentScreen by rememberSaveable { mutableStateOf(Screen.Dashboard) }
+
+        androidx.compose.runtime.LaunchedEffect(mealTrackerEnabled) {
+            if (!mealTrackerEnabled && currentScreen == Screen.Meals) {
+                currentScreen = Screen.Dashboard
+            }
+        }
+
+        val enabledScreens = remember(mealTrackerEnabled) {
+            if (mealTrackerEnabled) {
+                listOf(Screen.Dashboard, Screen.Calendar, Screen.Meals, Screen.Records, Screen.Profile)
+            } else {
+                listOf(Screen.Dashboard, Screen.Calendar, Screen.Records, Screen.Profile)
+            }
+        }
 
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -84,7 +100,7 @@ fun FitnessApp(viewModel: WorkoutViewModel) {
                     modifier = Modifier.testTag("bottom_nav_bar"),
                     tonalElevation = 8.dp
                 ) {
-                    Screen.values().forEach { screen ->
+                    enabledScreens.forEach { screen ->
                         val selected = currentScreen == screen
                         NavigationBarItem(
                             selected = selected,
@@ -123,6 +139,7 @@ fun FitnessApp(viewModel: WorkoutViewModel) {
                     when (screen) {
                         Screen.Dashboard -> DashboardScreen(viewModel = viewModel)
                         Screen.Calendar -> CalendarScreen(viewModel = viewModel)
+                        Screen.Meals -> MealsScreen(viewModel = viewModel)
                         Screen.Records -> PersonalRecordsScreen(viewModel = viewModel)
                         Screen.Profile -> ProfileScreen(viewModel = viewModel)
                     }
@@ -2253,6 +2270,7 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
     val setTrackerEnabled by viewModel.setTrackerEnabled.collectAsStateWithLifecycle()
     val repTrackerEnabled by viewModel.repTrackerEnabled.collectAsStateWithLifecycle()
     val timeTrackerEnabled by viewModel.timeTrackerEnabled.collectAsStateWithLifecycle()
+    val mealTrackerEnabled by viewModel.mealTrackerEnabled.collectAsStateWithLifecycle()
 
     // Read stored profile info
     val storedProfileName by viewModel.profileName.collectAsStateWithLifecycle()
@@ -2996,6 +3014,45 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                             checked = timeTrackerEnabled,
                             onCheckedChange = { viewModel.toggleTimeTracker() },
                             modifier = Modifier.testTag("toggle_time_tracker")
+                        )
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                    // 4. Meals Tracker toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Restaurant,
+                                contentDescription = "Meal Tracker",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Meal Tracker",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "Track daily calories and macronutrient logs",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = mealTrackerEnabled,
+                            onCheckedChange = { viewModel.toggleMealTracker() },
+                            modifier = Modifier.testTag("toggle_meal_tracker")
                         )
                     }
                 }

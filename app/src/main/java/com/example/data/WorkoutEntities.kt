@@ -29,3 +29,16 @@ data class WeightEntry(
     val weight: Double, // in kg
     val timestamp: Long = System.currentTimeMillis()
 )
+
+@Entity(tableName = "meal_logs")
+data class MealLog(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val calories: Int,
+    val protein: Double, // in g
+    val carbs: Double,   // in g
+    val fats: Double,    // in g
+    val timestamp: Long = System.currentTimeMillis(),
+    val mealType: String = "Breakfast" // E.g., Breakfast, Lunch, Dinner, Snack
+)
+

@@ -40,4 +40,14 @@ interface WorkoutDao {
 
     @Query("SELECT * FROM weight_entries ORDER BY timestamp DESC LIMIT 1")
     fun getLatestWeightEntry(): Flow<WeightEntry?>
+
+    // Meal Logs
+    @Query("SELECT * FROM meal_logs ORDER BY timestamp DESC")
+    fun getAllMealLogs(): Flow<List<MealLog>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMealLog(log: MealLog)
+
+    @Query("DELETE FROM meal_logs WHERE id = :id")
+    suspend fun deleteMealLog(id: Int)
 }
