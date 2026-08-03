@@ -69,6 +69,10 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
     var carbsStr by rememberSaveable { mutableStateOf("") }
     var fatsStr by rememberSaveable { mutableStateOf("") }
     var selectedMealType by rememberSaveable { mutableStateOf("Breakfast") }
+    
+    // Date filter & past data state
+    var selectedTimeFilter by rememberSaveable { mutableStateOf("Today") } // "Today", "Yesterday", "Past 7 Days", "All History"
+    var selectedLogDateMillis by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
 
     // UI Local state for calorie & macro target settings
     var showEditTargetsDialog by rememberSaveable { mutableStateOf(false) }
@@ -99,7 +103,8 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
         }
     }
 
-    // Filter today's logged meals
+    // Filter calculations for past data and date ranges
+    val context = androidx.compose.ui.platform.LocalContext.current
     val todayStartMillis = remember {
         val calendar = Calendar.getInstance()
         calendar.set(Calendar.HOUR_OF_DAY, 0)
@@ -108,16 +113,56 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
         calendar.set(Calendar.MILLISECOND, 0)
         calendar.timeInMillis
     }
-    
-    val todayMeals = remember(mealLogs) {
-        mealLogs.filter { it.timestamp >= todayStartMillis }
+
+    val todayEndMillis = remember(todayStartMillis) {
+        todayStartMillis + 86400000L - 1L
     }
-    
-    // Nutrition summary metrics
-    val totalCalories = todayMeals.sumOf { it.calories }
-    val totalProtein = todayMeals.sumOf { it.protein }
-    val totalCarbs = todayMeals.sumOf { it.carbs }
-    val totalFats = todayMeals.sumOf { it.fats }
+
+    val yesterdayStartMillis = remember(todayStartMillis) {
+        todayStartMillis - 86400000L
+    }
+
+    val yesterdayEndMillis = remember(todayStartMillis) {
+        todayStartMillis - 1L
+    }
+
+    val sevenDaysAgoMillis = remember(todayStartMillis) {
+        todayStartMillis - (7L * 86400000L)
+    }
+
+    // Meals matching the selected filter
+    val filteredMeals = remember(mealLogs, selectedTimeFilter, todayStartMillis) {
+        when (selectedTimeFilter) {
+            "Today" -> mealLogs.filter { it.timestamp >= todayStartMillis }
+            "Yesterday" -> mealLogs.filter { it.timestamp in yesterdayStartMillis..yesterdayEndMillis }
+            "Past 7 Days" -> mealLogs.filter { it.timestamp >= sevenDaysAgoMillis }.sortedByDescending { it.timestamp }
+            "All History" -> mealLogs.sortedByDescending { it.timestamp }
+            else -> mealLogs.filter { it.timestamp >= todayStartMillis }
+        }
+    }
+
+    // Header dynamic titles
+    val displayHeaderTitle = when (selectedTimeFilter) {
+        "Today" -> "Today's Intake"
+        "Yesterday" -> "Yesterday's Intake"
+        "Past 7 Days" -> "Past 7 Days Summary"
+        "All History" -> "All Food History"
+        else -> "Daily Intake"
+    }
+
+    val displayHeaderSubtitle = when (selectedTimeFilter) {
+        "Today" -> SimpleDateFormat("EEEE, MMM dd", Locale.getDefault()).format(Date())
+        "Yesterday" -> SimpleDateFormat("EEEE, MMM dd", Locale.getDefault()).format(Date(yesterdayStartMillis))
+        "Past 7 Days" -> "Last 7 Days (${filteredMeals.size} logged items)"
+        "All History" -> "Total Stored Logs (${mealLogs.size} items)"
+        else -> SimpleDateFormat("EEEE, MMM dd", Locale.getDefault()).format(Date())
+    }
+
+    // Nutrition summary metrics for selected filter
+    val totalCalories = filteredMeals.sumOf { it.calories }
+    val totalProtein = filteredMeals.sumOf { it.protein }
+    val totalCarbs = filteredMeals.sumOf { it.carbs }
+    val totalFats = filteredMeals.sumOf { it.fats }
 
     LazyColumn(
         modifier = Modifier
@@ -126,7 +171,7 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. HERO HEADER - Dynamic Daily Progress Card
+        // 1. HERO HEADER - Dynamic Daily & History Progress Card
         item {
             Card(
                 modifier = Modifier
@@ -150,14 +195,13 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                     ) {
                         Column {
                             Text(
-                                text = "Today's Intake",
+                                text = displayHeaderTitle,
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
-                            val formatter = remember { SimpleDateFormat("EEEE, MMM dd", Locale.getDefault()) }
                             Text(
-                                text = formatter.format(Date()),
+                                text = displayHeaderSubtitle,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                             )
@@ -181,7 +225,7 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = "Daily Tracker",
+                                    text = if (selectedTimeFilter == "Today") "Daily Tracker" else selectedTimeFilter,
                                     style = MaterialTheme.typography.bodySmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -222,7 +266,7 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                                     .testTag("edit_calorie_target_button")
                             ) {
                                 Text(
-                                    text = "/ $targetCalories kcal",
+                                    text = if (selectedTimeFilter == "Today" || selectedTimeFilter == "Yesterday") "/ $targetCalories kcal target" else "${filteredMeals.size} meal entries logged",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -309,20 +353,23 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Track Every Day Meals",
+                            text = "Track Meals & View History",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Log portions to balance healthy nutrients",
+                            text = "Record past or present food intake into Room & Cloud",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     
                     Button(
-                        onClick = { showAddDialog = true },
+                        onClick = { 
+                            selectedLogDateMillis = System.currentTimeMillis()
+                            showAddDialog = true 
+                        },
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.testTag("add_meal_button")
                     ) {
@@ -338,30 +385,52 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
             }
         }
 
-        // 3. MEALS LIST SECTION
+        // 3. MEALS HISTORY FILTER TABS & LIST SECTION
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Logged Meals",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                
-                Text(
-                    text = "${todayMeals.size} Today",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Food Logs & History",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    
+                    Text(
+                        text = "${filteredMeals.size} Saved (${mealLogs.size} Total)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // Time Filter Choice Chips
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("Today", "Yesterday", "Past 7 Days", "All History").forEach { filterOpt ->
+                        val isSelected = selectedTimeFilter == filterOpt
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = { selectedTimeFilter = filterOpt },
+                            label = { Text(filterOpt, style = MaterialTheme.typography.labelMedium) },
+                            modifier = Modifier.testTag("filter_chip_${filterOpt.lowercase().replace(" ", "_")}"),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
+                }
             }
         }
 
-        if (todayMeals.isEmpty()) {
+        if (filteredMeals.isEmpty()) {
             item {
                 Card(
                     modifier = Modifier
@@ -384,13 +453,13 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                             modifier = Modifier.size(48.dp)
                         )
                         Text(
-                            text = "No Meals Logged Today",
+                            text = "No Meals Found for $selectedTimeFilter",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Maintain consistency by logging breakfast, lunch, or dinner macros.",
+                            text = "Tap 'Log Meal' above to record breakfast, lunch, or dinner macros for any past or present date.",
                             style = MaterialTheme.typography.bodySmall,
                             textAlign = TextAlign.Center,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
@@ -399,11 +468,62 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                 }
             }
         } else {
-            items(todayMeals) { meal ->
-                MealLogItem(
-                    meal = meal,
-                    onDeleteClick = { viewModel.deleteMealLog(meal.id) }
-                )
+            if (selectedTimeFilter == "Past 7 Days" || selectedTimeFilter == "All History") {
+                // Group meals by date string
+                val dateFormat = SimpleDateFormat("EEEE, MMM d, yyyy", Locale.getDefault())
+                val groupedMeals = filteredMeals.groupBy { dateFormat.format(Date(it.timestamp)) }
+                
+                groupedMeals.forEach { (dateStr, mealsInGroup) ->
+                    item(key = "header_$dateStr") {
+                        val groupCals = mealsInGroup.sumOf { it.calories }
+                        val groupProt = mealsInGroup.sumOf { it.protein }.toInt()
+                        val groupCarb = mealsInGroup.sumOf { it.carbs }.toInt()
+                        val groupFat = mealsInGroup.sumOf { it.fats }.toInt()
+                        
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = dateStr,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "$groupCals kcal • P:${groupProt}g C:${groupCarb}g F:${groupFat}g",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+
+                    items(mealsInGroup, key = { it.id }) { meal ->
+                        MealLogItem(
+                            meal = meal,
+                            onDeleteClick = { viewModel.deleteMealLog(meal.id) }
+                        )
+                    }
+                }
+            } else {
+                items(filteredMeals, key = { it.id }) { meal ->
+                    MealLogItem(
+                        meal = meal,
+                        onDeleteClick = { viewModel.deleteMealLog(meal.id) }
+                    )
+                }
             }
         }
 
@@ -711,13 +831,15 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                                             listOf("Breakfast", "Lunch", "Dinner", "Snack").forEach { type ->
                                                 TextButton(
                                                     onClick = {
+                                                        val targetTimestamp = if (selectedTimeFilter == "Yesterday") yesterdayStartMillis + 43200000L else System.currentTimeMillis()
                                                         viewModel.addMealLog(
                                                             name = meal.name,
                                                             calories = meal.calories,
                                                             protein = meal.protein,
                                                             carbs = meal.carbs,
                                                             fats = meal.fats,
-                                                            mealType = type
+                                                            mealType = type,
+                                                            timestamp = targetTimestamp
                                                         )
                                                         lastLoggedMealName = meal.name
                                                         lastLoggedMealType = type
@@ -943,6 +1065,73 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                         }
                     }
 
+                    // Meal Date Selector
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Log Date",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val dateLabel = SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(selectedLogDateMillis))
+                            OutlinedCard(
+                                onClick = {
+                                    val calendar = Calendar.getInstance()
+                                    calendar.timeInMillis = selectedLogDateMillis
+                                    val year = calendar.get(Calendar.YEAR)
+                                    val month = calendar.get(Calendar.MONTH)
+                                    val day = calendar.get(Calendar.DAY_OF_MONTH)
+
+                                    val datePickerDialog = android.app.DatePickerDialog(
+                                        context,
+                                        { _, selYear, selMonth, selDay ->
+                                            val c = Calendar.getInstance()
+                                            c.set(selYear, selMonth, selDay, 12, 0, 0)
+                                            selectedLogDateMillis = c.timeInMillis
+                                        },
+                                        year, month, day
+                                    )
+                                    datePickerDialog.show()
+                                },
+                                modifier = Modifier.weight(1f).testTag("select_meal_date_card"),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CalendarToday,
+                                            contentDescription = "Date",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = dateLabel,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Change date",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // Numeric Fields
                     OutlinedTextField(
                         value = caloriesStr,
@@ -1022,7 +1211,8 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                                 protein = protein,
                                 carbs = carbs,
                                 fats = fats,
-                                mealType = selectedMealType
+                                mealType = selectedMealType,
+                                timestamp = selectedLogDateMillis
                             )
                             // Clear inputs
                             mealName = ""
