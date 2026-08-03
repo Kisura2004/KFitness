@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import com.example.data.MealLog
 import com.example.viewmodel.WorkoutViewModel
 import java.text.SimpleDateFormat
@@ -76,36 +77,25 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
     var editCarbsGoalStr by rememberSaveable { mutableStateOf("") }
     var editFatsGoalStr by rememberSaveable { mutableStateOf("") }
     
-    // AI Suggestions user state
-    var countryInput by rememberSaveable { mutableStateOf("United States") }
-    var requirementInput by rememberSaveable(profileGoal) { 
-        mutableStateOf(if (profileGoal.isNotEmpty()) profileGoal else "Balanced Nutrition") 
+    // Goal-Based Pre-built Meal Plans state
+    val defaultGoalTab = remember(profileGoal) {
+        when {
+            profileGoal.contains("Gain", ignoreCase = true) -> "Muscle Gain"
+            profileGoal.contains("Loss", ignoreCase = true) || profileGoal.contains("Fat", ignoreCase = true) -> "Fat Loss"
+            else -> "Balanced Nutrition"
+        }
     }
+    var selectedGoalTab by remember(defaultGoalTab) { mutableStateOf(defaultGoalTab) }
+    var selectedRegion by rememberSaveable { mutableStateOf("Global") }
 
-    // Toggle for Llama model customizable settings
-    var showLlamaConfig by rememberSaveable { mutableStateOf(false) }
-    var keyVisible by rememberSaveable { mutableStateOf(false) }
+    var lastLoggedMealName by remember { mutableStateOf<String?>(null) }
+    var lastLoggedMealType by remember { mutableStateOf<String?>(null) }
 
-    // Country selection autcompletion definitions
-    val countryList = remember {
-        listOf(
-            "United States", "India", "United Kingdom", "Canada", "Australia", "Germany", "France",
-            "Japan", "Brazil", "South Africa", "Mexico", "Singapore", "New Zealand", "Spain", "Italy",
-            "Netherlands", "Sweden", "Switzerland", "China", "Russia", "Argentina", "Chile", "Colombia",
-            "Peru", "Ireland", "Portugal", "Norway", "Finland", "Denmark", "Austria", "Belgium", "Greece",
-            "Turkey", "Saudi Arabia", "United Arab Emirates", "Egypt", "Nigeria", "Kenya", "Malaysia",
-            "Thailand", "Vietnam", "Indonesia", "Philippines", "Sri Lanka", "Bangladesh", "Pakistan",
-            "Ukraine", "Poland", "Czech Republic", "Hungary", "Romania"
-        ).distinct().sorted()
-    }
-    var showCountrySuggestions by remember { mutableStateOf(false) }
-    val filteredCountries = remember(countryInput) {
-        if (countryInput.trim().isEmpty()) {
-            emptyList()
-        } else {
-            countryList.filter { 
-                it.contains(countryInput, ignoreCase = true) && !it.equals(countryInput, ignoreCase = true)
-            }
+    LaunchedEffect(lastLoggedMealName) {
+        if (lastLoggedMealName != null) {
+            delay(3000)
+            lastLoggedMealName = null
+            lastLoggedMealType = null
         }
     }
 
@@ -417,14 +407,14 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
             }
         }
 
-        // 4. AI RECOMMENDATIONS EXPANSION PANEL
+        // 4. PRE-BUILT NUTRITION PLANNER
         item {
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             Spacer(modifier = Modifier.height(8.dp))
             
             Text(
-                text = "Nutrition Planner",
+                text = "Pre-Built Nutrition Plans",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -435,7 +425,7 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("gemini_suggestions_card"),
+                    .testTag("pre_built_plans_card"),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -444,6 +434,7 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    // Header
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -456,361 +447,300 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                                 .padding(8.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = "AI Assist",
+                                imageVector = Icons.Default.Restaurant,
+                                contentDescription = "Meal Plans",
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         }
                         Column {
                             Text(
-                                text = "Localized LLM Food Suggestions",
+                                text = "Personalized Diet & Recipes",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Suggest meals with Llama or Gemini",
+                                text = "Instantly loaded based on your registration goal",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
-                    // Collapsible Llama configuration section
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                        )
+                    // Alert / Info banner about user's goal
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f))
+                            .padding(12.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { showLlamaConfig = !showLlamaConfig }
-                                    .padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Settings,
-                                        contentDescription = "LLM Settings",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Text(
-                                        text = "Model: $currentProvider",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                Icon(
-                                    imageVector = if (showLlamaConfig) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                    contentDescription = "Toggle LLM config",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = "Active Goal",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Your Profile Goal: ${profileGoal.ifBlank { "General Fitness" }}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
-                            }
-
-                            AnimatedVisibility(
-                                visible = showLlamaConfig,
-                                enter = fadeIn() + expandVertically(),
-                                exit = fadeOut() + shrinkVertically()
-                            ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Text(
-                                        text = "Choose LLM provider & load free Llama configurations:",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-
-                                    // Selection chips
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        listOf("Llama (OpenRouter)", "Llama (Groq)", "Gemini (Default)").forEach { providerOpt ->
-                                            val isSelected = currentProvider == providerOpt
-                                            Box(
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(
-                                                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface
-                                                    )
-                                                    .clickable {
-                                                        if (providerOpt == "Llama (OpenRouter)") {
-                                                            viewModel.updateLlamaConfig(
-                                                                provider = providerOpt,
-                                                                baseUrl = "https://openrouter.ai/api/v1/",
-                                                                model = "meta-llama/llama-3.2-3b-instruct:free",
-                                                                apiKey = currentApiKey
-                                                            )
-                                                        } else if (providerOpt == "Llama (Groq)") {
-                                                            viewModel.updateLlamaConfig(
-                                                                provider = providerOpt,
-                                                                baseUrl = "https://api.groq.com/openai/v1/",
-                                                                model = "llama-3.3-70b-versatile",
-                                                                apiKey = currentApiKey
-                                                            )
-                                                        } else {
-                                                            viewModel.updateLlamaConfig(
-                                                                provider = providerOpt,
-                                                                baseUrl = "",
-                                                                model = "",
-                                                                apiKey = ""
-                                                            )
-                                                        }
-                                                    }
-                                                    .padding(vertical = 6.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = providerOpt.replace("Llama ", ""),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    if (currentProvider != "Gemini (Default)") {
-                                        // Editable fields for custom config
-                                        OutlinedTextField(
-                                            value = currentBaseUrl,
-                                            onValueChange = { 
-                                                viewModel.updateLlamaConfig(currentProvider, it, currentModel, currentApiKey)
-                                            },
-                                            label = { Text("API Base URL") },
-                                            modifier = Modifier.fillMaxWidth().testTag("llama_base_url_input"),
-                                            singleLine = true,
-                                            textStyle = MaterialTheme.typography.bodySmall
-                                        )
-
-                                        OutlinedTextField(
-                                            value = currentModel,
-                                            onValueChange = {
-                                                viewModel.updateLlamaConfig(currentProvider, currentBaseUrl, it, currentApiKey)
-                                            },
-                                            label = { Text("Model Name") },
-                                            modifier = Modifier.fillMaxWidth().testTag("llama_model_name_input"),
-                                            singleLine = true,
-                                            textStyle = MaterialTheme.typography.bodySmall
-                                        )
-
-                                        OutlinedTextField(
-                                            value = currentApiKey,
-                                            onValueChange = {
-                                                viewModel.updateLlamaConfig(currentProvider, currentBaseUrl, currentModel, it)
-                                            },
-                                            label = { Text("Llama API Key") },
-                                            modifier = Modifier.fillMaxWidth().testTag("llama_api_key_input"),
-                                            singleLine = true,
-                                            visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                            trailingIcon = {
-                                                IconButton(onClick = { keyVisible = !keyVisible }) {
-                                                    Icon(
-                                                        imageVector = if (keyVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                                        contentDescription = "Toggle password visibility"
-                                                    )
-                                                }
-                                            },
-                                            textStyle = MaterialTheme.typography.bodySmall
-                                        )
-
-                                        Text(
-                                            text = "You can obtain free Llama keys at openrouter.ai/keys or use dynamic Groq credentials.",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                        )
-                                    }
-                                }
+                                Text(
+                                    text = "We have customized your default planner to target ${
+                                        if (profileGoal.contains("Gain", ignoreCase = true)) "high protein lean bulk foods"
+                                        else if (profileGoal.contains("Loss", ignoreCase = true) || profileGoal.contains("Fat", ignoreCase = true)) "caloric deficit & high satiety items"
+                                        else "balanced macros and sustained daily energy"
+                                    }.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                                )
                             }
                         }
                     }
 
-                    // Autocompeting Country Code Box
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            OutlinedTextField(
-                                value = countryInput,
-                                onValueChange = { 
-                                    countryInput = it
-                                    showCountrySuggestions = true 
-                                },
-                                label = { Text("Country / Localization") },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("ai_country_input"),
-                                leadingIcon = { Icon(Icons.Default.Place, contentDescription = "Country") },
-                                shape = RoundedCornerShape(8.dp),
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Text,
-                                    imeAction = ImeAction.Next
-                                ),
-                                singleLine = true
+                    // Goal selector tab chips
+                    Text(
+                        text = "Filter by Goal Plan",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("Muscle Gain", "Fat Loss", "Balanced Nutrition").forEach { goalOpt ->
+                            val isSelected = selectedGoalTab == goalOpt
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedGoalTab = goalOpt },
+                                label = { Text(goalOpt) },
+                                modifier = Modifier.weight(1f).testTag("goal_tab_${goalOpt.replace(" ", "_").lowercase()}"),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
                             )
-                            
-                            // Country Suggestions floating overlay underneath the field
-                            if (showCountrySuggestions && filteredCountries.isNotEmpty()) {
+                        }
+                    }
+
+                    // Region selector tab chips
+                    Text(
+                        text = "Filter by Localization / Country",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("Global", "Indian", "Japanese", "Mexican").forEach { regionOpt ->
+                            val isSelected = selectedRegion == regionOpt
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { selectedRegion = regionOpt },
+                                label = { Text(regionOpt) },
+                                modifier = Modifier.weight(1f).testTag("region_tab_${regionOpt.lowercase()}"),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            )
+                        }
+                    }
+
+                    // Quick Logged success animation card
+                    AnimatedVisibility(
+                        visible = lastLoggedMealName != null,
+                        enter = slideInVertically() + fadeIn(),
+                        exit = slideOutVertically() + fadeOut()
+                    ) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Logged",
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = "Successfully logged \"$lastLoggedMealName\" to $lastLoggedMealType!",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                        }
+                    }
+
+                    // Meal List
+                    val filteredMeals = preBuiltMeals.filter {
+                        it.goal.equals(selectedGoalTab, ignoreCase = true) &&
+                        it.region.equals(selectedRegion, ignoreCase = true)
+                    }
+
+                    if (filteredMeals.isEmpty()) {
+                        Text(
+                            text = "No customized plans found for this combination.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            filteredMeals.forEach { meal ->
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .testTag("country_suggestions_dropdown"),
-                                    shape = RoundedCornerShape(8.dp),
+                                        .testTag("pre_built_meal_item_${meal.name.replace(" ", "_").lowercase()}"),
                                     colors = CardDefaults.cardColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                     ),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                    shape = RoundedCornerShape(12.dp)
                                 ) {
-                                    Column(
-                                        modifier = Modifier.padding(4.dp),
-                                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                                    ) {
-                                        filteredCountries.take(5).forEach { matchedCountry ->
-                                            Row(
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(
+                                            text = meal.name,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = meal.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // Macro pills row
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            // Cal
+                                            Box(
                                                 modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clickable {
-                                                        countryInput = matchedCountry
-                                                        showCountrySuggestions = false
-                                                    }
-                                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                                verticalAlignment = Alignment.CenterVertically
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                                                    .padding(horizontal = 6.dp, vertical = 4.dp)
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Place,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp),
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
-                                                Spacer(modifier = Modifier.width(8.dp))
                                                 Text(
-                                                    text = matchedCountry,
-                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    text = "🔥 ${meal.calories} kcal",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                            // Protein
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f))
+                                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "💪 ${meal.protein.toInt()}g P",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.secondary
+                                                )
+                                            }
+                                            // Carbs
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.1f))
+                                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "🍞 ${meal.carbs.toInt()}g C",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.tertiary
+                                                )
+                                            }
+                                            // Fats
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(MaterialTheme.colorScheme.outlineVariant)
+                                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "🥑 ${meal.fats.toInt()}g F",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                         }
-                                    }
-                                }
-                            }
-                        }
-                    }
 
-                    OutlinedTextField(
-                        value = requirementInput,
-                        onValueChange = { requirementInput = it },
-                        label = { Text("Dietary Requirements & Fitness Goals") },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("ai_requirement_input"),
-                        leadingIcon = { Icon(Icons.Default.Fitbit, contentDescription = "Goal") },
-                        shape = RoundedCornerShape(8.dp),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                        singleLine = true
-                    )
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                                        Spacer(modifier = Modifier.height(6.dp))
 
-                    Button(
-                        onClick = {
-                            focusManager.clearFocus()
-                            showCountrySuggestions = false
-                            viewModel.fetchFoodSuggestions(countryInput.trim(), requirementInput.trim())
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("trigger_ai_suggestions_button"),
-                        enabled = !isGenerating && countryInput.isNotBlank() && requirementInput.isNotBlank(),
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
-                    ) {
-                        if (isGenerating) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = MaterialTheme.colorScheme.onSecondary,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            val isLlama = currentProvider != "Gemini (Default)"
-                            Text(if (isLlama) "Querying Llama model..." else "Querying Gemini...")
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = "Query AI",
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Generate Suggestions")
-                        }
-                    }
-
-                    // Display recommendation returns
-                    AnimatedVisibility(
-                        visible = suggestedText != null || suggestionError != null,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                                .padding(12.dp)
-                        ) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = if (suggestionError != null) "Recommendation Error" else "AI Recommendations",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (suggestionError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                                    )
-                                    
-                                    IconButton(
-                                        onClick = { viewModel.clearSuggestions() },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Clear response",
-                                            modifier = Modifier.size(16.dp)
+                                        // Quick Log interactive triggers
+                                        Text(
+                                            text = "Quick Log to Diary:",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            listOf("Breakfast", "Lunch", "Dinner", "Snack").forEach { type ->
+                                                TextButton(
+                                                    onClick = {
+                                                        viewModel.addMealLog(
+                                                            name = meal.name,
+                                                            calories = meal.calories,
+                                                            protein = meal.protein,
+                                                            carbs = meal.carbs,
+                                                            fats = meal.fats,
+                                                            mealType = type
+                                                        )
+                                                        lastLoggedMealName = meal.name
+                                                        lastLoggedMealType = type
+                                                    },
+                                                    modifier = Modifier.weight(1f).testTag("quick_log_${type.lowercase()}_${meal.name.replace(" ", "_").lowercase()}"),
+                                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                                    colors = ButtonDefaults.textButtonColors(
+                                                        containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                                    ),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "+ $type",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
-                                }
-
-                                if (suggestionError != null) {
-                                    Text(
-                                        text = suggestionError ?: "An unknown generation error occurred.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                } else {
-                                    Text(
-                                        text = suggestedText ?: "",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
                                 }
                             }
                         }
@@ -841,6 +771,30 @@ fun MealsScreen(viewModel: WorkoutViewModel) {
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    Button(
+                        onClick = {
+                            val suggested = viewModel.calculateSuggestedCalories()
+                            editCalorieGoalStr = suggested.calories.toString()
+                            editProteinGoalStr = suggested.protein.toInt().toString()
+                            editCarbsGoalStr = suggested.carbs.toInt().toString()
+                            editFatsGoalStr = suggested.fats.toInt().toString()
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("calculate_targets_from_profile"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Auto Suggest",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Suggest from My Profile")
+                    }
                     
                     OutlinedTextField(
                         value = editCalorieGoalStr,
@@ -1243,3 +1197,238 @@ fun MealLogItem(
         }
     }
 }
+
+data class LocalMealPlan(
+    val name: String,
+    val description: String,
+    val calories: Int,
+    val protein: Double,
+    val carbs: Double,
+    val fats: Double,
+    val goal: String, // "Muscle Gain", "Fat Loss", "Balanced Nutrition"
+    val region: String // "Global", "Indian", "Japanese", "Mexican"
+)
+
+val preBuiltMeals = listOf(
+    // === FAT LOSS ===
+    // Global
+    LocalMealPlan(
+        name = "Lemon Garlic Grilled Whitefish",
+        description = "Tender whitefish fillet grilled with garlic and olive oil, served with roasted asparagus.",
+        calories = 340, protein = 34.0, carbs = 12.0, fats = 9.0,
+        goal = "Fat Loss", region = "Global"
+    ),
+    LocalMealPlan(
+        name = "Mediterranean Chickpea & Avocado Salad",
+        description = "A fiber-rich salad combining boiled chickpeas, crisp cucumbers, red onions, and diced avocado.",
+        calories = 380, protein = 12.0, carbs = 34.0, fats = 14.0,
+        goal = "Fat Loss", region = "Global"
+    ),
+    LocalMealPlan(
+        name = "Egg White Omelet with Spinach",
+        description = "Fluffy egg whites cooked with baby spinach and mushrooms, served with one slice of whole wheat toast.",
+        calories = 320, protein = 26.0, carbs = 22.0, fats = 6.0,
+        goal = "Fat Loss", region = "Global"
+    ),
+    // Indian
+    LocalMealPlan(
+        name = "Egg White Masala Bhurji & Roti",
+        description = "Scrambled egg whites with tomatoes, onions, chilies, and coriander, served with 1 medium whole wheat roti.",
+        calories = 310, protein = 22.0, carbs = 24.0, fats = 8.0,
+        goal = "Fat Loss", region = "Indian"
+    ),
+    LocalMealPlan(
+        name = "Grilled Tofu / Paneer Tikka Salad",
+        description = "Marinated paneer or firm tofu grilled with bell peppers and onions, tossed in a leafy green salad.",
+        calories = 340, protein = 18.0, carbs = 14.0, fats = 16.0,
+        goal = "Fat Loss", region = "Indian"
+    ),
+    LocalMealPlan(
+        name = "Sprouted Moong & Pomegranate Salad",
+        description = "Steamed sprouts tossed with cucumbers, tomatoes, pomegranate seeds, lemon juice, and chat masala.",
+        calories = 280, protein = 14.0, carbs = 38.0, fats = 4.0,
+        goal = "Fat Loss", region = "Indian"
+    ),
+    // Japanese
+    LocalMealPlan(
+        name = "Steamed Cod with Soy-Ginger Glaze",
+        description = "Fresh white cod fillet steamed with ginger and green onions, served with steamed broccoli.",
+        calories = 290, protein = 32.0, carbs = 10.0, fats = 4.0,
+        goal = "Fat Loss", region = "Japanese"
+    ),
+    LocalMealPlan(
+        name = "Chilled Tofu (Hiyayakko) & Edamame",
+        description = "Silken tofu topped with grated ginger and scallions, served with a cup of boiled edamame pods.",
+        calories = 310, protein = 22.0, carbs = 18.0, fats = 12.0,
+        goal = "Fat Loss", region = "Japanese"
+    ),
+    LocalMealPlan(
+        name = "Grilled Chicken Yakitori",
+        description = "Skewers of lean chicken breast grilled with salt and green onions, served with shirataki (konjac) noodles.",
+        calories = 340, protein = 35.0, carbs = 8.0, fats = 6.0,
+        goal = "Fat Loss", region = "Japanese"
+    ),
+    // Mexican
+    LocalMealPlan(
+        name = "Grilled Chicken Tacos",
+        description = "Shredded skinless grilled chicken in two corn tortillas, topped with pico de gallo and fresh salsa verde.",
+        calories = 330, protein = 28.0, carbs = 22.0, fats = 6.0,
+        goal = "Fat Loss", region = "Mexican"
+    ),
+    LocalMealPlan(
+        name = "Nopal (Cactus) Salad with Panela",
+        description = "Sliced tender boiled nopales with tomatoes, cilantro, lemon, and small cubes of light panela cheese.",
+        calories = 210, protein = 12.0, carbs = 14.0, fats = 8.0,
+        goal = "Fat Loss", region = "Mexican"
+    ),
+    LocalMealPlan(
+        name = "Ceviche de Pescado (Fish Ceviche)",
+        description = "Fresh white fish cured in lime juice, mixed with diced tomatoes, onions, cilantro, and cucumber.",
+        calories = 290, protein = 24.0, carbs = 18.0, fats = 4.0,
+        goal = "Fat Loss", region = "Mexican"
+    ),
+
+    // === MUSCLE GAIN ===
+    // Global
+    LocalMealPlan(
+        name = "High-Protein Chicken Quinoa Bowl",
+        description = "Grilled chicken breast slices over quinoa, roasted sweet potatoes, and steamed broccoli.",
+        calories = 660, protein = 48.0, carbs = 65.0, fats = 16.0,
+        goal = "Muscle Gain", region = "Global"
+    ),
+    LocalMealPlan(
+        name = "Baked Salmon with Sweet Potato",
+        description = "Omega-3 rich salmon fillet baked with herbs, served with a large baked sweet potato and asparagus.",
+        calories = 610, protein = 40.0, carbs = 52.0, fats = 20.0,
+        goal = "Muscle Gain", region = "Global"
+    ),
+    LocalMealPlan(
+        name = "Lean Beef & Brown Rice Stir-Fry",
+        description = "Lean beef strips seared with bell peppers, sugar snap peas, and steamed brown rice.",
+        calories = 640, protein = 42.0, carbs = 68.0, fats = 15.0,
+        goal = "Muscle Gain", region = "Global"
+    ),
+    // Indian
+    LocalMealPlan(
+        name = "Tandoori Chicken Tikka with Quinoa",
+        description = "Chicken breast marinated in spiced yogurt, grilled, and served with fluffy high-protein quinoa.",
+        calories = 620, protein = 42.0, carbs = 55.0, fats = 16.0,
+        goal = "Muscle Gain", region = "Indian"
+    ),
+    LocalMealPlan(
+        name = "High-Protein Paneer Scramble",
+        description = "Fresh paneer crumbled and sautéed with green peas, onions, tomatoes, and cumin, with two whole wheat toasts.",
+        calories = 540, protein = 24.0, carbs = 48.0, fats = 18.0,
+        goal = "Muscle Gain", region = "Indian"
+    ),
+    LocalMealPlan(
+        name = "Soya Chunks Masala with Brown Rice",
+        description = "High-protein soya chunks simmered in a spiced tomato gravy, served with steamed brown basmati rice.",
+        calories = 580, protein = 36.0, carbs = 65.0, fats = 10.0,
+        goal = "Muscle Gain", region = "Indian"
+    ),
+    // Japanese
+    LocalMealPlan(
+        name = "Salmon Teriyaki & Brown Rice",
+        description = "Salmon fillet grilled with a light teriyaki glaze, paired with a generous bowl of brown rice.",
+        calories = 650, protein = 42.0, carbs = 60.0, fats = 18.0,
+        goal = "Muscle Gain", region = "Japanese"
+    ),
+    LocalMealPlan(
+        name = "Oven-Baked Chicken Katsu & Rice",
+        description = "Crispy panko-breaded chicken breast baked to reduce fat, served with white rice and shredded cabbage.",
+        calories = 590, protein = 44.0, carbs = 58.0, fats = 12.0,
+        goal = "Muscle Gain", region = "Japanese"
+    ),
+    LocalMealPlan(
+        name = "Beef & Tofu Gyudon Bowl",
+        description = "Thinly sliced lean beef and firm tofu simmered in sweet dashi broth over a warm bed of rice.",
+        calories = 680, protein = 38.0, carbs = 72.0, fats = 18.0,
+        goal = "Muscle Gain", region = "Japanese"
+    ),
+    // Mexican
+    LocalMealPlan(
+        name = "Beef Fajitas with Black Beans",
+        description = "Lean beef strips seared with bell peppers, served with brown rice and seasoned black beans.",
+        calories = 640, protein = 42.0, carbs = 58.0, fats = 16.0,
+        goal = "Muscle Gain", region = "Mexican"
+    ),
+    LocalMealPlan(
+        name = "Chipotle Grilled Chicken Bowl",
+        description = "Spicy chipotle chicken breast served over quinoa with avocado slices and sweet corn.",
+        calories = 590, protein = 45.0, carbs = 48.0, fats = 14.0,
+        goal = "Muscle Gain", region = "Mexican"
+    ),
+    LocalMealPlan(
+        name = "Egg White Huevos Rancheros",
+        description = "Egg whites over baked corn tortillas, layered with spicy ranchero salsa, black beans, and cotija cheese.",
+        calories = 440, protein = 34.0, carbs = 38.0, fats = 8.0,
+        goal = "Muscle Gain", region = "Mexican"
+    ),
+
+    // === BALANCED NUTRITION ===
+    // Global
+    LocalMealPlan(
+        name = "Classic Turkey & Swiss Wheat Wrap",
+        description = "Lean deli turkey breast, Swiss cheese, crisp lettuce, and tomatoes in a whole wheat wrap.",
+        calories = 450, protein = 32.0, carbs = 38.0, fats = 12.0,
+        goal = "Balanced Nutrition", region = "Global"
+    ),
+    LocalMealPlan(
+        name = "Seared Salmon & Quinoa Medley",
+        description = "Grilled salmon fillet with lemon pepper over quinoa mixed with baby spinach and cherry tomatoes.",
+        calories = 540, protein = 38.0, carbs = 45.0, fats = 18.0,
+        goal = "Balanced Nutrition", region = "Global"
+    ),
+    LocalMealPlan(
+        name = "Greek Yogurt Power Berry Bowl",
+        description = "Thick Greek yogurt topped with fresh blueberries, strawberries, chia seeds, and honey.",
+        calories = 340, protein = 24.0, carbs = 38.0, fats = 8.0,
+        goal = "Balanced Nutrition", region = "Global"
+    ),
+    // Indian
+    LocalMealPlan(
+        name = "Mixed Vegetable Khichdi with Curd",
+        description = "Nutritious, easily digestible one-pot rice and yellow lentils cooked with mixed veggies, served with fresh yogurt.",
+        calories = 420, protein = 16.0, carbs = 62.0, fats = 10.0,
+        goal = "Balanced Nutrition", region = "Indian"
+    ),
+    LocalMealPlan(
+        name = "Chana Masala with 2 Rotis",
+        description = "Protein-rich chickpeas cooked in a flavorful tomato-onion gravy, paired with two fresh whole wheat rotis.",
+        calories = 490, protein = 18.0, carbs = 68.0, fats = 12.0,
+        goal = "Balanced Nutrition", region = "Indian"
+    ),
+    LocalMealPlan(
+        name = "Paneer Veggie Mint Wrap",
+        description = "Sautéed paneer strips, bell peppers, and cabbage rolled inside a whole wheat tortilla with mint chutney.",
+        calories = 460, protein = 20.0, carbs = 45.0, fats = 14.0,
+        goal = "Balanced Nutrition", region = "Indian"
+    ),
+    // Japanese
+    LocalMealPlan(
+        name = "Salt-Grilled Mackerel (Saba)",
+        description = "Crispy, omega-3 rich grilled mackerel served with a bowl of steamed rice and pickled radish.",
+        calories = 510, protein = 28.0, carbs = 42.0, fats = 18.0,
+        goal = "Balanced Nutrition", region = "Japanese"
+    ),
+    LocalMealPlan(
+        name = "Soba Noodles with Soft Egg",
+        description = "Buckwheat soba noodles served in a warm savory dashi broth with green onions and a soft boiled egg.",
+        calories = 430, protein = 18.0, carbs = 58.0, fats = 8.0,
+        goal = "Balanced Nutrition", region = "Japanese"
+    ),
+    // Mexican
+    LocalMealPlan(
+        name = "Enchiladas Verdes with Chicken",
+        description = "Chicken breast rolled in corn tortillas, baked in green tomatillo sauce and light cheese.",
+        calories = 480, protein = 34.0, carbs = 45.0, fats = 10.0,
+        goal = "Balanced Nutrition", region = "Mexican"
+    ),
+    LocalMealPlan(
+        name = "Sopa de Tortilla with Avocado",
+        description = "A warm, spiced tomato and chili broth topped with crispy tortilla strips, shredded chicken, and fresh avocado.",
+        calories = 390, protein = 16.0, carbs = 35.0, fats = 14.0,
+        goal = "Balanced Nutrition", region = "Mexican"
+    )
+)

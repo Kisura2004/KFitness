@@ -46,6 +46,14 @@ import com.example.viewmodel.WorkoutViewModel
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.app.Activity
+import android.widget.Toast
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.example.data.FirebaseSyncManager
 
 class MainActivity : ComponentActivity() {
     private val viewModel: WorkoutViewModel by viewModels()
@@ -155,6 +163,7 @@ fun RegistrationScreen(viewModel: WorkoutViewModel) {
     var name by remember { mutableStateOf("") }
     var birthday by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
+    var gender by remember { mutableStateOf("Male") }
     var weight by remember { mutableStateOf("") }
     var height by remember { mutableStateOf("") }
     var targetWeight by remember { mutableStateOf("") }
@@ -340,6 +349,34 @@ fun RegistrationScreen(viewModel: WorkoutViewModel) {
                             shape = RoundedCornerShape(12.dp)
                         )
 
+                        Text(
+                            text = "Gender *",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            val genders = listOf("Male", "Female")
+                            genders.forEach { genOption ->
+                                val isSelected = gender == genOption
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { gender = genOption },
+                                    label = { Text(genOption) },
+                                    modifier = Modifier.weight(1f).testTag("reg_gender_${genOption.lowercase()}"),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                )
+                            }
+                        }
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -463,6 +500,7 @@ fun RegistrationScreen(viewModel: WorkoutViewModel) {
                                 name = name,
                                 birthday = birthday,
                                 age = age.toIntOrNull() ?: 25,
+                                gender = gender,
                                 weight = weight,
                                 height = height.ifBlank { "178" },
                                 goal = goal,
@@ -2264,6 +2302,9 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
     val weightsAsc by viewModel.weightEntriesAsc.collectAsStateWithLifecycle()
     val latestWeightEntry by viewModel.latestWeight.collectAsStateWithLifecycle()
     val logs by viewModel.workoutLogs.collectAsStateWithLifecycle()
+    val firebaseUser by viewModel.firebaseUser.collectAsStateWithLifecycle()
+    val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
+    val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
 
     // Gather toggled customized tracking permissions from VM
@@ -2274,6 +2315,7 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
 
     // Read stored profile info
     val storedProfileName by viewModel.profileName.collectAsStateWithLifecycle()
+    val storedProfileGender by viewModel.profileGender.collectAsStateWithLifecycle()
     val storedHeightText by viewModel.profileHeight.collectAsStateWithLifecycle()
     val storedUserGoal by viewModel.profileGoal.collectAsStateWithLifecycle()
     val storedWeightTargetText by viewModel.weightTarget.collectAsStateWithLifecycle()
@@ -2285,6 +2327,7 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
 
     // Local profile edit drafts initialized with stored values automatically
     var profileName by remember(storedProfileName) { mutableStateOf(storedProfileName) }
+    var profileGender by remember(storedProfileGender) { mutableStateOf(storedProfileGender) }
     var heightText by remember(storedHeightText) { mutableStateOf(storedHeightText) }
     var userGoal by remember(storedUserGoal) { mutableStateOf(storedUserGoal) }
     var weightTargetText by remember(storedWeightTargetText) { mutableStateOf(storedWeightTargetText) }
@@ -2297,7 +2340,53 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
     var isEditingByIcon by remember { mutableStateOf(false) }
     var showPhotoPickerDialog by remember { mutableStateOf(false) }
 
+    // Firebase Config Form States
+    val storedConfig = remember { viewModel.getStoredFirebaseConfig() }
+    var firebaseApiKey by remember { mutableStateOf(storedConfig["apiKey"] ?: "") }
+    var firebaseProjectId by remember { mutableStateOf(storedConfig["projectId"] ?: "") }
+    var firebaseAppId by remember { mutableStateOf(storedConfig["appId"] ?: "") }
+    var firebaseWebClientId by remember { mutableStateOf(storedConfig["webClientId"] ?: "") }
+    var isFirebaseConfigExpanded by remember { mutableStateOf(false) }
+
     val context = LocalContext.current
+
+    val gso = remember(firebaseWebClientId) {
+        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(firebaseWebClientId.ifBlank { "dummy-id-token" })
+            .requestEmail()
+            .build()
+    }
+
+    val googleSignInClient = remember(gso) {
+        GoogleSignIn.getClient(context, gso)
+    }
+
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                val account = task.getResult(ApiException::class.java)
+                val idToken = account.idToken
+                if (idToken != null) {
+                    viewModel.authenticateWithGoogle(
+                        idToken = idToken,
+                        onSuccess = {
+                            Toast.makeText(context, "Logged in as ${account.displayName}!", Toast.LENGTH_SHORT).show()
+                        },
+                        onError = { error ->
+                            Toast.makeText(context, "Firebase Authentication failed: $error", Toast.LENGTH_LONG).show()
+                        }
+                    )
+                } else {
+                    Toast.makeText(context, "Google Sign-In succeeded, but web client/ID token is empty.", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: ApiException) {
+                Toast.makeText(context, "Google Sign-In failed: ${e.localizedMessage ?: e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     val galleryLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
@@ -2568,7 +2657,7 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                             fontWeight = FontWeight.Medium
                         )
                         Text(
-                            text = "Height: $heightText cm • Target: $weightTargetText kg",
+                            text = "Height: $heightText cm • Target: $weightTargetText kg • $storedProfileGender",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -2711,6 +2800,32 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                             )
                         }
 
+                        Text(
+                            text = "Gender",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            val genders = listOf("Male", "Female")
+                            genders.forEach { genOption ->
+                                val isSelected = profileGender == genOption
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { profileGender = genOption },
+                                    label = { Text(genOption) },
+                                    modifier = Modifier.weight(1f).testTag("settings_gender_${genOption.lowercase()}"),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                )
+                            }
+                        }
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -2759,6 +2874,7 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                                     name = profileName,
                                     birthday = birthdayText,
                                     age = ageVal,
+                                    gender = profileGender,
                                     weight = currentWeightText,
                                     height = heightText,
                                     goal = userGoal,
@@ -2781,6 +2897,351 @@ fun ProfileScreen(viewModel: WorkoutViewModel) {
                             Icon(imageVector = Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Save Profile Entry")
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 2.5 Firebase Account & Cloud Synchronization Block ---
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("firebase_sync_card"),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Cloud,
+                            contentDescription = "Cloud Sync",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Text(
+                            text = "Cloud Backup & Sync",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Text(
+                        text = "Sign in to securely back up and automatically synchronize all your workouts, weights, goals, and nutrition records dynamically.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    if (firebaseUser != null) {
+                        // User is authenticated
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                // User picture or initials
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.secondary)
+                                        .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (firebaseUser?.photoUrl?.isNotEmpty() == true) {
+                                        coil.compose.AsyncImage(
+                                            model = firebaseUser?.photoUrl,
+                                            contentDescription = "User photo",
+                                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                        )
+                                    } else {
+                                        Text(
+                                            text = (firebaseUser?.name ?: "U").take(1).uppercase(),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSecondary,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = firebaseUser?.name ?: "Connected User",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                    Text(
+                                        text = firebaseUser?.email ?: "Synced with Google",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Sync Status Information
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (isSyncing) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = "Synced status",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Text(
+                                text = if (isSyncing) "Synchronizing data..." else if (syncStatus.isNotEmpty()) syncStatus else "Cloud synchronization active",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (syncStatus.contains("error", ignoreCase = true)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = { viewModel.triggerManualSync() },
+                                modifier = Modifier.weight(1f).testTag("sync_now_button"),
+                                shape = RoundedCornerShape(10.dp),
+                                enabled = !isSyncing
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = "Sync icon",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Sync Now")
+                            }
+
+                            OutlinedButton(
+                                onClick = { viewModel.signOutFirebase() },
+                                modifier = Modifier.weight(1f).testTag("firebase_sign_out_button"),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                ),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ExitToApp,
+                                    contentDescription = "Logout icon",
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Sign Out")
+                            }
+                        }
+                    } else {
+                        // User is NOT authenticated
+                        if (firebaseWebClientId.isBlank()) {
+                            // Suggest dynamic Firebase Configuration setup
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Config Warning",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = "Google Sign-In requires your Web Client ID. Please expand 'Advanced Configuration' below and enter your Firebase web client ID to activate cloud features.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                if (firebaseWebClientId.isBlank()) {
+                                    Toast.makeText(context, "Please enter your Firebase Web Client ID below first.", Toast.LENGTH_LONG).show()
+                                    isFirebaseConfigExpanded = true
+                                } else {
+                                    try {
+                                        val signInIntent = googleSignInClient.signInIntent
+                                        googleSignInLauncher.launch(signInIntent)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Failed starting Google Sign-In: ${e.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().testTag("google_sign_in_button"),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AccountCircle,
+                                contentDescription = "Google Icon",
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Sign In with Google Account")
+                        }
+                    }
+
+                    // Divider and Toggleable Dynamic Credentials Form
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isFirebaseConfigExpanded = !isFirebaseConfigExpanded }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Credentials Icon",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Advanced Configuration (Your Firebase Keys)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            imageVector = if (isFirebaseConfigExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Toggle config visibility",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    if (isFirebaseConfigExpanded) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Supply your own Firebase project keys dynamically to persist all data to your personal cloud. No rebuilding required!",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            OutlinedTextField(
+                                value = firebaseWebClientId,
+                                onValueChange = { firebaseWebClientId = it },
+                                label = { Text("OAuth Web Client ID", style = MaterialTheme.typography.bodySmall) },
+                                placeholder = { Text("xxx-yyy.apps.googleusercontent.com") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth().testTag("firebase_web_client_id_input"),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+
+                            OutlinedTextField(
+                                value = firebaseApiKey,
+                                onValueChange = { firebaseApiKey = it },
+                                label = { Text("API Key (apiKey)", style = MaterialTheme.typography.bodySmall) },
+                                placeholder = { Text("AIzaSy...") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth().testTag("firebase_api_key_input"),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+
+                            OutlinedTextField(
+                                value = firebaseProjectId,
+                                onValueChange = { firebaseProjectId = it },
+                                label = { Text("Project ID (projectId)", style = MaterialTheme.typography.bodySmall) },
+                                placeholder = { Text("my-fitness-project") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth().testTag("firebase_project_id_input"),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+
+                            OutlinedTextField(
+                                value = firebaseAppId,
+                                onValueChange = { firebaseAppId = it },
+                                label = { Text("Application ID (appId)", style = MaterialTheme.typography.bodySmall) },
+                                placeholder = { Text("1:1234567890:android:abcd1234") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth().testTag("firebase_app_id_input"),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+
+                            Button(
+                                onClick = {
+                                    if (firebaseApiKey.isBlank() || firebaseProjectId.isBlank() || firebaseAppId.isBlank() || firebaseWebClientId.isBlank()) {
+                                        Toast.makeText(context, "Please fill in all config parameters to connect successfully.", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        val ok = viewModel.updateFirebaseConfig(
+                                            apiKey = firebaseApiKey,
+                                            projectId = firebaseProjectId,
+                                            appId = firebaseAppId,
+                                            webClientId = firebaseWebClientId
+                                        )
+                                        if (ok) {
+                                            Toast.makeText(context, "Firebase Config Saved & Initialized!", Toast.LENGTH_LONG).show()
+                                            isFirebaseConfigExpanded = false
+                                        } else {
+                                            Toast.makeText(context, "Configuration update encountered an error.", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("save_firebase_config_button"),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.secondary,
+                                    contentColor = MaterialTheme.colorScheme.onSecondary
+                                )
+                            ) {
+                                Text("Apply & Connect Firebase")
+                            }
                         }
                     }
                 }
